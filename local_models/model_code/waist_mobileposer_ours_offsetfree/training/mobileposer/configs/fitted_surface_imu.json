@@ -1,0 +1,170 @@
+{
+ "version": 1,
+ "smpl_sha256": "0e8c0bbbbc635dcb166ed29c303fb4bef16ea5f623e5a89263495a9e403575bd",
+ "reference": "SlimeVR screenshot; forearm (not hand), anatomical left/right",
+ "orientation": "bone_calibrated",
+ "acceleration": "world_linear_m_s2",
+ "pose_blendshape": false,
+ "attachments": {
+  "lw": {
+   "joint": 18,
+   "face": 2457,
+   "vertices": [
+    1919,
+    1920,
+    1918
+   ],
+   "weights": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "vertex 1920: nearest to the sensor placement fitted on DIP-IMU train subjects"
+  },
+  "rw": {
+   "joint": 19,
+   "face": 9345,
+   "vertices": [
+    5380,
+    5381,
+    5379
+   ],
+   "weights": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "vertex 5381: nearest to the sensor placement fitted on DIP-IMU train subjects"
+  },
+  "ls": {
+   "joint": 4,
+   "face": 1237,
+   "vertices": [
+    1102,
+    1103,
+    1098
+   ],
+   "weights": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "vertex 1103: nearest to the sensor placement fitted on DIP-IMU train subjects"
+  },
+  "rs": {
+   "joint": 5,
+   "face": 8123,
+   "vertices": [
+    4584,
+    4585,
+    4587
+   ],
+   "weights": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "vertex 4587: nearest to the sensor placement fitted on DIP-IMU train subjects"
+  },
+  "pelvis": {
+   "joint": 0,
+   "face": 9032,
+   "vertices": [
+    5244,
+    5246,
+    5247
+   ],
+   "weights": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "vertex 5247: nearest to the sensor placement fitted on DIP-IMU train subjects"
+  }
+ }
+}

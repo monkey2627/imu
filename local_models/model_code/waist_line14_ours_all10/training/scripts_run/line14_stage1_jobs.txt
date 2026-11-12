@@ -1,0 +1,18 @@
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_perturb_eval.py --ckpt checkpoints/line14/oracle_s42.pt --seed 42 --geom r1 --gpu {GPU} --out results/line14/E3test/r1_oracle_s42.json
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_perturb_eval.py --ckpt checkpoints/line14/oracle_s7.pt --seed 7 --geom r1 --gpu {GPU} --out results/line14/E3test/r1_oracle_s7.json
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_perturb_eval.py --ckpt checkpoints/line14/oracle_s3.pt --seed 3 --geom r1 --gpu {GPU} --out results/line14/E3test/r1_oracle_s3.json
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom height --seed 42 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom height --seed 7 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom height --seed 3 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom arms --seed 42 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom arms --seed 7 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom arms --seed 3 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom legs --seed 42 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom legs --seed 7 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom legs --seed 3 --gpu {GPU} --tag E2
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.05 --noise-mode indep --seed 42 --gpu {GPU} --tag E3train
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.05 --noise-mode indep --seed 7 --gpu {GPU} --tag E3train
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.05 --noise-mode indep --seed 3 --gpu {GPU} --tag E3train
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.10 --noise-mode indep --seed 42 --gpu {GPU} --tag E3train
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.10 --noise-mode indep --seed 7 --gpu {GPU} --tag E3train
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_train.py --mode oracle --geom r1 --noise-train 0.10 --noise-mode indep --seed 3 --gpu {GPU} --tag E3train

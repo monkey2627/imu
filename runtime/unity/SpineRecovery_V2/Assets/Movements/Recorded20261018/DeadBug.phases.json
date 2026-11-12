@@ -1,0 +1,32 @@
+{
+  "action": "DeadBug",
+  "source": "腰椎第一次记录/7_死虫/1/7_v1.fbx",
+  "fps": 30,
+  "routineStart": 498,
+  "routineEnd": 1041,
+  "boundaries": [
+    513,
+    648,
+    771,
+    900,
+    1029
+  ],
+  "peaks": [
+    585,
+    711,
+    840,
+    981
+  ],
+  "firstTargets": [
+    3,
+    2,
+    3,
+    2
+  ],
+  "secondTargets": [
+    0,
+    1,
+    0,
+    1
+  ]
+}

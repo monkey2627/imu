@@ -1,0 +1,4 @@
+model: waist_imudino_fiveimu
+# This machine's RTX 4090 replay measured ~15-20 ms/inference: target 30 poses/s.
+# CPU-only machines should remeasure before using this cadence.
+infer_every: 2

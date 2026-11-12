@@ -1,0 +1,44 @@
+游戏背景音乐 / Game music credits
+来源及许可核对日期：2026-10-29
+
+鸟狗：Space Arp — Centurion_of_war
+Source: https://opengameart.org/content/space-arp
+Download: https://opengameart.org/sites/default/files/space_arp_0.ogg
+Asset: BirdDog_SpaceArp.ogg
+星空幻想琶音，搭配星轨、流动音符及交替伸展。
+
+死虫：Crystal Cave (song18) — The Cynic Project / cynicmusic
+Source: https://opengameart.org/content/crystal-cave-song18
+Download: https://opengameart.org/sites/default/files/song18_0.mp3
+Artist: https://pixelsphere.org/ / https://cynicmusic.com/
+Asset: DeadBug_CrystalCave.ogg
+钟铃和空间感氛围，搭配月夜、柔和圆环及伸展收回。
+
+臀桥：Heavenly Loop — isaiah658
+Source: https://opengameart.org/content/heavenly-loop
+Download: https://opengameart.org/sites/default/files/Heavenly%20Loop.flac
+Asset: HipThrust_HeavenlyLoop.ogg
+梦幻合成器及柔和合唱音色，搭配金色星光及持续保持。
+应用于原版、新评分版及保持 30 秒版三个臀桥场景。
+
+左侧桥（动态与保持 30 秒）：Enchanted Tiki 86 — The Cynic Project / cynicmusic
+Source: https://opengameart.org/content/enchanted-tiki-86
+Download: https://opengameart.org/sites/default/files/enchanted%20tiki%2086_0.mp3
+Artist: https://cynicmusic.com/ / https://pixelsphere.org/
+Asset: SideBridge_EnchantedTiki.ogg
+轻柔、循环感较强的空间氛围，与月夜星光圆环保持一致。
+使用该页面的原始 CC0 文件，不使用后来的商业扩展版。
+固定增益 -6.29 dB，尾首交叉淡化 1.5 秒，44.1 kHz 双声道 Ogg Vorbis。
+
+License for all source downloads: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+https://creativecommons.org/publicdomain/zero/1.0/legalcode
+这些下载文件由各自作者在上述来源页发布为 CC0。
+保留作者署名以便追溯；未使用作者网站上的其他作品或商业扩展版。
+
+项目内处理：转为 44.1 kHz 双声道 Ogg Vorbis；仅做固定增益和尾首重叠衔接。
+固定增益：Space Arp -0.11 dB，Crystal Cave -3.33 dB，Heavenly Loop +6.02 dB。
+尾首交叉淡化：分别为 1.0 秒、1.5 秒、0.25 秒；循环起点移动到重叠区之后。
+没有变速、移调或基于音乐节拍修改动作时序。场景音乐音量保留 0.32。
+Unity 使用 Compressed In Memory，保持原有循环播放、开始及停止调用。
+音频测量和场景验证见 output/game-music/。

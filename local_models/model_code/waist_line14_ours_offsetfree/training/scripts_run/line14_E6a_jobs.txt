@@ -1,0 +1,4 @@
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --seed 42 --gpu {GPU} --tag E6a
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --seed 7 --gpu {GPU} --tag E6a
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --seed 3 --gpu {GPU} --tag E6a
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat raw --seed 42 --gpu {GPU} --tag E6a

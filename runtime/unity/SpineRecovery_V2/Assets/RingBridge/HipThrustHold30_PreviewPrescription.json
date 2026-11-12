@@ -1,0 +1,8 @@
+{
+  "description": "仅用于场景演示。接收到真实处方后，通过 SetPrescriptionJson 替换。",
+  "prescriptionContractVersion": 2,
+  "orderId": 0,
+  "items": [
+    { "itemId": 1, "position": 0, "actionId": "5", "actionName": "臀桥", "sets": 1, "reps": 4, "holdSeconds": 30 }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "action": "SideBridge",
+  "source": "腰椎第一次记录/5_侧桥/1/5_v1.motion.json",
+  "fps": 30,
+  "bodyYawDegrees": 0,
+  "mirrorArmChannels": false,
+  "routineStart": 330,
+  "routineEnd": 1470,
+  "boundaries": [
+    344,
+    734,
+    1190,
+    1459
+  ],
+  "peaks": [
+    486,
+    984,
+    1259
+  ],
+  "repeatStart": 14,
+  "repeatEnd": 1129
+}

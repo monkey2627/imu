@@ -1,0 +1,27 @@
+{
+    "formatVersion": 1,
+    "actionId": "8",
+    "displayName": "鸟狗",
+    "version": 1,
+    "createdAtUtc": "2026-10-18T14:17:40.5803909Z",
+    "fbxFile": "8_v1.fbx",
+    "motionJsonFile": "8_v1.motion.json",
+    "trackerJsonFile": "8_v1.tracker.json",
+    "rawImuJsonFile": "8_v1.raw-imu.json",
+    "keyframesFile": "8_v1.keyframes.json",
+    "fbxSha256": "700b122fede756c59ca290a2b5924094e246cd2e97b4da9712f629015ca28458",
+    "motionJsonSha256": "26d119b5621c87b376dbb29571c083ef102dae2ad90ead2303e9b2c93dbe410f",
+    "trackerJsonSha256": "959a6e1471d329fedfc1a45e950ab7356665907bc9222cd8018ba04fd61517d0",
+    "rawImuJsonSha256": "a74b86b3c540f22d2a03d418658c18094ef2dde9d5d5d5e95bf181d3b74a1249",
+    "keyframesSha256": "329316fa2a24363455e41eb88ea9bb75c31e3da892e9747b20dddbec6adf00bd",
+    "rawImuFrameCount": 1318,
+    "rawImuSensorCount": 17,
+    "segments": [
+        {
+            "name": "8",
+            "firstFrame": 0,
+            "lastFrame": 1318,
+            "durationSeconds": 43.9114990234375
+        }
+    ]
+}

@@ -1,0 +1,56 @@
+# Local model weights and runtime artifacts
+/local_models/checkpoints/
+/runtime/python/checkpoints/
+/runtime/python/recordings/
+/runtime/python/analysis/data/
+/runtime/exports/*
+!/runtime/exports/README.md
+
+# Generated caches and build output
+**/__pycache__/
+*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.ipynb_checkpoints/
+**/node_modules/
+**/.gradle/
+**/.kotlin/
+**/build/
+**/Build/
+**/Builds/
+**/Temp/
+**/Logs/
+**/UserSettings/
+**/obj/
+**/bin/
+**/coverage/
+**/.cache/
+**/dist/
+**/out/
+
+# Local environments, credentials, and machine-specific settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+**/local.properties
+.vscode/
+.idea/
+.vs/
+*.user
+*.suo
+
+# Logs, temporary files, and OS metadata
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+.DS_Store
+Thumbs.db
+Desktop.ini

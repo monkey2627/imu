@@ -1,0 +1,27 @@
+{
+    "formatVersion": 1,
+    "actionId": "5",
+    "displayName": "侧桥",
+    "version": 1,
+    "createdAtUtc": "2026-10-18T14:17:19.7435971Z",
+    "fbxFile": "5_v1.fbx",
+    "motionJsonFile": "5_v1.motion.json",
+    "trackerJsonFile": "5_v1.tracker.json",
+    "rawImuJsonFile": "5_v1.raw-imu.json",
+    "keyframesFile": "5_v1.keyframes.json",
+    "fbxSha256": "27d91903da9d048f3b46320a0e59560a0c002be1ce5c1cbefe162d1b1409e361",
+    "motionJsonSha256": "ddc8a7bef2c386674c3b4876277e739c77a4e330d448fa56a5068ea59dc6f73a",
+    "trackerJsonSha256": "a4d359bd60e16704280ec8d730f93ab4e45d98ade5178a262c95c6b70a31e091",
+    "rawImuJsonSha256": "ad93812a043483538b3221a93dfc97ef4cf320bb678bd74b5cddec9a29d9cf08",
+    "keyframesSha256": "64c675965b9fbc55d17b1f8887082a1b30fc4f9e0a10e4c63664a7caf50a5228",
+    "rawImuFrameCount": 1589,
+    "rawImuSensorCount": 17,
+    "segments": [
+        {
+            "name": "5",
+            "firstFrame": 0,
+            "lastFrame": 1589,
+            "durationSeconds": 52.951202392578128
+        }
+    ]
+}

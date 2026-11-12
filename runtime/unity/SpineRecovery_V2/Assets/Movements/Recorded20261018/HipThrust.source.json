@@ -1,0 +1,27 @@
+{
+    "formatVersion": 1,
+    "actionId": "5",
+    "displayName": "臀桥",
+    "version": 1,
+    "createdAtUtc": "2026-10-18T14:23:43.7268571Z",
+    "fbxFile": "5_v1.fbx",
+    "motionJsonFile": "5_v1.motion.json",
+    "trackerJsonFile": "5_v1.tracker.json",
+    "rawImuJsonFile": "5_v1.raw-imu.json",
+    "keyframesFile": "5_v1.keyframes.json",
+    "fbxSha256": "7e5f1b65e8b5000b317b8c7233aa9bdd3f5b3f5fd1375625cbfb5a9cf9a03fff",
+    "motionJsonSha256": "10d61c72e748fa841238005c0c2cb03822ea183e856d736669e6b7d2d7f1c42d",
+    "trackerJsonSha256": "b4ec43d500d4b71e8a4e5e3891aab72ddf776001094ec46ed130d2127dd931eb",
+    "rawImuJsonSha256": "f1473916ea82a258ea513582ab2ec600cc9b82a2f181d032aa7d344626456478",
+    "keyframesSha256": "6bef72af5d5ea04769620c13ea849f9764f3d8fe64293e8472eff45e2b2d0e9f",
+    "rawImuFrameCount": 1053,
+    "rawImuSensorCount": 16,
+    "segments": [
+        {
+            "name": "5",
+            "firstFrame": 0,
+            "lastFrame": 1053,
+            "durationSeconds": 35.09104919433594
+        }
+    ]
+}

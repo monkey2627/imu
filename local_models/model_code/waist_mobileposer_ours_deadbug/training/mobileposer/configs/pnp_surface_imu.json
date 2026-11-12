@@ -1,0 +1,202 @@
+{
+ "version": 1,
+ "smpl_sha256": "0e8c0bbbbc635dcb166ed29c303fb4bef16ea5f623e5a89263495a9e403575bd",
+ "reference": "SlimeVR screenshot; forearm (not hand), anatomical left/right",
+ "orientation": "bone_calibrated",
+ "acceleration": "world_linear_m_s2",
+ "pose_blendshape": false,
+ "attachments": {
+  "lw": {
+   "joint": 18,
+   "face": 2483,
+   "vertices": [
+    1961,
+    1962,
+    1960
+   ],
+   "weights": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 1961"
+  },
+  "rw": {
+   "joint": 19,
+   "face": 9372,
+   "vertices": [
+    5421,
+    5423,
+    5424
+   ],
+   "weights": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 5424"
+  },
+  "ls": {
+   "joint": 4,
+   "face": 1311,
+   "vertices": [
+    1176,
+    1177,
+    1175
+   ],
+   "weights": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 1176"
+  },
+  "rs": {
+   "joint": 5,
+   "face": 8199,
+   "vertices": [
+    4588,
+    4662,
+    4661
+   ],
+   "weights": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 4662"
+  },
+  "head": {
+   "joint": 15,
+   "face": 435,
+   "vertices": [
+    250,
+    411,
+    247
+   ],
+   "weights": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 411"
+  },
+  "pelvis": {
+   "joint": 0,
+   "face": 4971,
+   "vertices": [
+    3022,
+    2913,
+    3021
+   ],
+   "weights": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "mount_rotation": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "description": "PNP/PIP sensor vertex 3021"
+  }
+ }
+}

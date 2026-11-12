@@ -1,0 +1,33 @@
+{
+  "action": "BirdDog",
+  "source": "腰椎第一次记录/8_鸟狗/1/8_v1.fbx",
+  "fps": 30,
+  "mirrorArmChannels": true,
+  "routineStart": 90,
+  "routineEnd": 1053,
+  "boundaries": [
+    120,
+    345,
+    600,
+    840,
+    1044
+  ],
+  "peaks": [
+    210,
+    450,
+    690,
+    930
+  ],
+  "firstTargets": [
+    3,
+    2,
+    3,
+    2
+  ],
+  "secondTargets": [
+    0,
+    1,
+    0,
+    1
+  ]
+}

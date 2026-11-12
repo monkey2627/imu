@@ -1,0 +1,423 @@
+<title>小腿传感器与抬腿可观测性</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column (~70ch) with full-width evidence tables and one figure strip; numbered sections follow the argument's order. */
+:root {
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --ink: #18222c;
+  --muted: #5b6874;
+  --rule: #d5dce1;
+  --accent: #1d6a86;
+  --accent-soft: #e2eff4;
+  --warn: #9a5b12;
+  --warn-soft: #f6ead9;
+  --ok: #2c6e47;
+  --ok-soft: #e1f0e6;
+  --bad: #a2352d;
+  --bad-soft: #f6e1de;
+  --fig-line: #18222c;
+  --fig-floor: #9aa7b1;
+  --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", "Menlo", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181e; --surface: #19212a; --ink: #e3e9ee; --muted: #9aa7b3; --rule: #2d3a46;
+    --accent: #6cb6d3; --accent-soft: #1b3240; --warn: #e0a85a; --warn-soft: #3a2c19;
+    --ok: #7cc79a; --ok-soft: #193326; --bad: #ec8a80; --bad-soft: #3c201d;
+    --fig-line: #e3e9ee; --fig-floor: #5d6c78; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181e; --surface: #19212a; --ink: #e3e9ee; --muted: #9aa7b3; --rule: #2d3a46;
+  --accent: #6cb6d3; --accent-soft: #1b3240; --warn: #e0a85a; --warn-soft: #3a2c19;
+  --ok: #7cc79a; --ok-soft: #193326; --bad: #ec8a80; --bad-soft: #3c201d;
+  --fig-line: #e3e9ee; --fig-floor: #5d6c78; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.75;
+}
+.wrap {
+  max-width: 920px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+  display: grid; gap: 44px;
+}
+.prose { max-width: 70ch; }
+header { display: grid; gap: 14px; border-bottom: 2px solid var(--ink); padding-bottom: 24px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-size: clamp(28px, 4.6vw, 40px); line-height: 1.25; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-size: 24px; line-height: 1.35; margin: 0; text-wrap: balance; display: flex; gap: 12px; align-items: baseline; }
+h2 .no { font-family: var(--font-mono); font-size: 15px; color: var(--accent); font-weight: 600; }
+h3 { font-size: 17px; margin: 0; }
+p, ul, ol { margin: 0; }
+section { display: grid; gap: 18px; }
+section > .prose { display: grid; gap: 14px; }
+ul, ol { padding-left: 1.3em; display: grid; gap: 6px; }
+code, .mono { font-family: var(--font-mono); font-size: .88em; }
+.lede { font-size: 17px; color: var(--muted); max-width: 70ch; }
+.verdict { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--accent); padding: 18px 20px; }
+.verdict p { max-width: 70ch; }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 3px; white-space: nowrap; }
+.t-bad { background: var(--bad-soft); color: var(--bad); }
+.t-warn { background: var(--warn-soft); color: var(--warn); }
+.t-ok { background: var(--ok-soft); color: var(--ok); }
+.t-info { background: var(--accent-soft); color: var(--accent); }
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 700; color: var(--muted); font-size: 13px; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--font-mono); white-space: nowrap; }
+.caption { font-size: 13px; color: var(--muted); max-width: 70ch; }
+.formula { font-family: var(--font-mono); background: var(--surface); border: 1px solid var(--rule); padding: 12px 16px; overflow-x: auto; font-size: 14px; white-space: pre; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--rule); padding: 10px 12px 12px; display: grid; gap: 6px; min-width: 0; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { font-size: 13px; color: var(--muted); }
+figcaption b { color: var(--ink); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.box { background: var(--surface); border: 1px solid var(--rule); padding: 14px 16px; display: grid; gap: 8px; min-width: 0; }
+.small { font-size: 13px; color: var(--muted); }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 18px; display: grid; gap: 8px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">技术说明 · 鸟狗游戏腿部评价 · 2026-11-03</div>
+  <h1>腿上只有小腿传感器时，抬腿能否被测出来</h1>
+  <p class="lede">项目现用 5 个 IMU：双前臂、双小腿、腰。鸟狗的核心动作是把一条腿向后伸直抬起，游戏需要评价这一点。本文汇总这段时间的实验证据，说明现有配置在原理上缺什么，逐条检查了还有没有别的办法（包括针对性微调），最后提出用气压计补足的方案和验证计划。</p>
+</header>
+
+<div class="verdict">
+  <h3>结论</h3>
+  <p><b>腿停住时：严格不可测。</b>"跪地"与"伸直抬起"两种姿势下，小腿和腰的朝向几乎相同，静止时线性加速度都为零，传感器读数没有差别，任何算法或模型都无法区分。这是几何上的结论，不依赖具体模型。</p>
+  <p><b>腿在运动时：原理上可测，但现有数据做不到。</b>抬腿时小腿会被抬高约 0.4 m，理论上能从加速度积分得到；但 SlimeVR 输出的加速度连一次已知的 0.5 m 手臂运动都还原不出来。</p>
+  <p><b>针对性微调不能解决。</b>微调只能改变模型在两种读数相同的姿势之间"猜哪一个"，不能增加信息。已经用教练鸟狗数据微调过的模型，在真实使用中仍把伸直的腿预测成跪姿；而且原地动小腿和真抬腿的信号是重叠的。</p>
+  <p><b>离线实验证实了"缺的就是大腿信息"。</b>把小腿传感器换到大腿、其余条件完全相同重训后，在教练真实数据的鸟狗伸腿帧上，大腿方向误差从 54° 降到 12°、膝角误差从 87° 降到 15°；但臀桥、侧桥、卧位猫的小腿与膝角误差明显变大。单换位置只是把歧义从大腿挪到了小腿（第 6 节）。</p>
+  <p><b>补一个能测高度的传感器，就补上了缺的那个量。</b>小腿和腰各配一个气压计做差分，就能直接测出小腿相对腰的高度，进而解出大腿角度和膝角。成本低、可穿戴，需要先做一次小实验验证漂移和精度。</p>
+</div>
+
+<section>
+  <h2><span class="no">1</span>缺的是什么：一张图说明</h2>
+  <div class="prose">
+    <p>髋是球关节，膝基本是铰链。只给定小腿的朝向时，大腿还可以绕膝关节的铰链轴转动，同时膝角相应变化，小腿朝向保持不变。下面三种姿势中，小腿都是水平朝后，小腿上的传感器读数完全一样，差别只在小腿离髋有多高（图中 <i>h</i>）。</p>
+  </div>
+  <div class="figs" role="group" aria-label="三种腿部姿势小腿朝向相同">
+    <figure>
+      <svg viewBox="0 0 270 175" aria-labelledby="fa">
+        <title id="fa">跪地：大腿竖直，膝屈 90 度，小腿水平朝后</title>
+        <line x1="0" y1="152" x2="270" y2="152" style="stroke:var(--fig-floor)" stroke-width="2"/>
+        <line x1="170" y1="60" x2="255" y2="60" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="262" cy="48" r="10" fill="none" style="stroke:var(--fig-line)" stroke-width="3"/>
+        <line x1="170" y1="60" x2="170" y2="140" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <line x1="170" y1="140" x2="90" y2="140" style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round"/>
+        <rect x="120" y="133" width="18" height="14" rx="2" style="fill:var(--accent)"/>
+        <line x1="116" y1="124" x2="92" y2="124" style="stroke:var(--accent)" stroke-width="2"/>
+        <polygon points="92,120 84,124 92,128" style="fill:var(--accent)"/>
+        <circle cx="170" cy="60" r="5" style="fill:var(--fig-line)"/>
+        <line x1="40" y1="60" x2="40" y2="140" style="stroke:var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="46" y="104" font-size="13" style="fill:var(--warn);font-family:var(--font-mono)">h = 0.40 m</text>
+      </svg>
+      <figcaption><b>A 跪地</b>：大腿竖直，膝屈约 90°。</figcaption>
+    </figure>
+    <figure>
+      <svg viewBox="0 0 270 175" aria-labelledby="fb">
+        <title id="fb">伸直抬起：大腿和小腿都水平朝后</title>
+        <line x1="0" y1="152" x2="270" y2="152" style="stroke:var(--fig-floor)" stroke-width="2"/>
+        <line x1="170" y1="60" x2="255" y2="60" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="262" cy="48" r="10" fill="none" style="stroke:var(--fig-line)" stroke-width="3"/>
+        <line x1="170" y1="60" x2="90" y2="60" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <line x1="90" y1="60" x2="10" y2="60" style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round"/>
+        <rect x="40" y="53" width="18" height="14" rx="2" style="fill:var(--accent)"/>
+        <line x1="36" y1="44" x2="12" y2="44" style="stroke:var(--accent)" stroke-width="2"/>
+        <polygon points="12,40 4,44 12,48" style="fill:var(--accent)"/>
+        <circle cx="170" cy="60" r="5" style="fill:var(--fig-line)"/>
+        <text x="96" y="96" font-size="13" style="fill:var(--warn);font-family:var(--font-mono)">h ≈ 0</text>
+      </svg>
+      <figcaption><b>B 伸直抬起</b>：正确的鸟狗伸腿。</figcaption>
+    </figure>
+    <figure>
+      <svg viewBox="0 0 270 175" aria-labelledby="fc">
+        <title id="fc">代偿：大腿下垂 40 度，屈膝，小腿仍水平</title>
+        <line x1="0" y1="152" x2="270" y2="152" style="stroke:var(--fig-floor)" stroke-width="2"/>
+        <line x1="170" y1="60" x2="255" y2="60" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="262" cy="48" r="10" fill="none" style="stroke:var(--fig-line)" stroke-width="3"/>
+        <line x1="170" y1="60" x2="109" y2="111" style="stroke:var(--fig-line)" stroke-width="5" stroke-linecap="round"/>
+        <line x1="109" y1="111" x2="29" y2="111" style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round"/>
+        <rect x="60" y="104" width="18" height="14" rx="2" style="fill:var(--accent)"/>
+        <line x1="56" y1="95" x2="32" y2="95" style="stroke:var(--accent)" stroke-width="2"/>
+        <polygon points="32,91 24,95 32,99" style="fill:var(--accent)"/>
+        <circle cx="170" cy="60" r="5" style="fill:var(--fig-line)"/>
+        <line x1="190" y1="60" x2="190" y2="111" style="stroke:var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="196" y="92" font-size="13" style="fill:var(--warn);font-family:var(--font-mono)">h = 0.26 m</text>
+      </svg>
+      <figcaption><b>C 代偿</b>：大腿下垂、屈膝，小腿被摆平。</figcaption>
+    </figure>
+  </div>
+  <p class="caption">蓝色方块是小腿 IMU，箭头是它测得的骨骼方向，三图相同。h 是小腿相对髋的下降量，按大腿长 0.40 m 示意。这正是气压计能直接测的量（第 7 节）。</p>
+  <div class="prose">
+    <p>用式子写：设小腿全局旋转为 <i>R</i><sub>s</sub>，膝关节绕铰链轴 <i>k</i> 屈曲角为 θ，则大腿全局旋转为</p>
+  </div>
+  <div class="formula">R_thigh(θ) = R_s · Rot(k, θ)⁻¹      θ ∈ [0°, ~140°]</div>
+  <div class="prose">
+    <p>对任意 θ，小腿和腰的朝向读数都不变；静止时三处的线性加速度都是 0。所以在静止保持期间，这是一个一维、读数完全相同的姿势族。传感器无法提供关于 θ 的任何信息，只有外部先验（模型训练数据中的习惯）能在其中挑一个。</p>
+    <p>运动中情况不同：大腿转动会带动小腿平移，小腿传感器的加速度里含有这部分信息。所以严格地说，"不可测"只对静止成立；运动时能否测出，取决于加速度的质量（第 3 节）。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">2</span>实测证据：静止时确实分不开</h2>
+  <div class="prose">
+    <p>数据来自本人佩戴的鸟狗校准录制 <code>calibration_20261103_215533</code>。前臂航向已按新校准方法修正，输入方向本身是对的。</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>小腿</th><th>跪地时指向（相对躯干前方）</th><th>伸腿抬起时指向</th><th>两者指向相差</th><th>完整旋转相差</th></tr></thead>
+      <tbody>
+        <tr><td>右</td><td class="num">方位 173°，俯仰 −0°</td><td class="num">方位 −176°，俯仰 +4°</td><td class="num">≈ 12°</td><td class="num">23°（主要是绕小腿轴的扭转）</td></tr>
+        <tr><td>左</td><td class="num">方位 −175°，俯仰 +4°</td><td class="num">方位 174°，俯仰 +1°</td><td class="num">≈ 12°</td><td class="num">27°（同上）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">两种姿势中小腿都是"水平朝后"。剩下约 12° 的方向差和 20° 多的扭转差，来自髋的旋转和姿势细节，不是抬腿本身的几何特征（见第 4 节的模板实验）。</p>
+
+  <div class="prose">
+    <p>六个模型对同一段录制的预测（取每个保持段最后 3 秒的均值）。真实值：抬起那条腿的大腿接近水平（教练数据中约 −20°），膝接近伸直。</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>模型</th><th>跪地基准：大腿俯仰 / 膝屈</th><th>左伸展时右腿（应抬起）</th><th>右伸展时左腿（应抬起）</th></tr></thead>
+      <tbody>
+        <tr><td>MobilePoser / AMASS</td><td class="num">−63° / 120°</td><td class="num">−52° / 116°</td><td class="num">−48° / 71°</td></tr>
+        <tr><td>StreamPoser / AMASS</td><td class="num">−82° / 132°</td><td class="num">−37° / 85°</td><td class="num">−35° / 120°</td></tr>
+        <tr><td>Line14 / AMASS</td><td class="num">−70° / 96°</td><td class="num">−46° / 119°</td><td class="num">−39° / 115°</td></tr>
+        <tr><td>MobilePoser / Ours 微调</td><td class="num">−84° / 94°</td><td class="num">−61° / 86°</td><td class="num">−40° / 53°</td></tr>
+        <tr><td>StreamPoser / Ours 微调</td><td class="num">−76° / 94°</td><td class="num">−42° / 61°</td><td class="num">−35° / 52°</td></tr>
+        <tr><td>Line14 / Ours 微调</td><td class="num">−52° / 121°</td><td class="num">−40° / 125°</td><td class="num">−55° / 91°</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">所有模型都把伸直抬起的腿画成大腿下垂 35–61°、膝屈 52–125°，介于跪地和伸直之间、偏向跪地。三个"Ours 微调"模型的训练集包含教练的鸟狗录制（动作 8 在训练动作 1–8 中），仍然如此。</p>
+
+  <div class="prose">
+    <p>同一问题放到大腿上看，余量大得多。教练 Ours 数据（17 个 IMU、10 个游戏动作）中，按膝角把帧分成"伸直"（&lt;30°）和"弯曲"（&gt;70°）两组，比较两组的平均骨骼指向：</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>动作</th><th>伸直 vs 弯曲：大腿指向相差</th><th>伸直 vs 弯曲：小腿指向相差</th></tr></thead>
+      <tbody>
+        <tr><td>鸟狗 左腿 / 右腿</td><td class="num">56° / 70°</td><td class="num">19° / 16°</td></tr>
+        <tr><td>死虫</td><td class="num">53°</td><td class="num">13°</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">教练的标签由 SlimeVR 解算，是伪标签，不是独立真值；但大腿和小腿两列的相对差距不受这一点影响。</p>
+</section>
+
+<section>
+  <h2><span class="no">3</span>运动中的信息：现有加速度用不上</h2>
+  <div class="prose">
+    <p>静止分不开，就只能靠运动过程：抬腿时小腿被抬高约 0.4 m。我们用已知答案的动作检验加速度积分：前臂从下垂抬到前平举（录制 <code>unity_20261103_002526</code>），传感器应升高约 0.4 m，直线位移约 0.5 m。处理方法：真实时间戳；动作前后静止段零速约束（ZUPT）；用动作两端的静止段扣零偏。</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>检验</th><th>应得</th><th>实得</th><th>判断</th></tr></thead>
+      <tbody>
+        <tr><td>手臂抬起 / 放下，竖直位移，5 种字段与坐标系组合</td><td class="num">+0.4 / −0.4 m</td><td class="num">−0.22 … +0.34 m，符号不一致</td><td><span class="tag t-bad">失败</span></td></tr>
+        <tr><td>同上，三轴位移长度</td><td class="num">≈ 0.5 m</td><td class="num">0.06 … 0.40 m，抬和放方向不相反</td><td><span class="tag t-bad">失败</span></td></tr>
+        <tr><td>用多个朝向的静止段拟合加速度计零偏后再积分</td><td class="num">+0.4 / −0.4 m</td><td class="num">几乎无变化</td><td><span class="tag t-bad">失败</span></td></tr>
+        <tr><td>鸟狗真抬腿 4 次，竖直位移</td><td class="num">+0.3 … +0.5 m</td><td class="num">大多 −0.08 … +0.06 m</td><td><span class="tag t-bad">失败</span></td></tr>
+        <tr><td>采样率与丢帧</td><td>—</td><td class="num">约 57 行/秒，96–100% 的行数值在变</td><td><span class="tag t-ok">不是原因</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>原因查到了源码层面（SlimeVR Server，<code>TrackersUDPServer.kt</code>、<code>DataFeedBuilder.kt</code>）：追踪器只上传融合后的四元数和<b>固件自己去过重力的线性加速度</b>（UDP 包 4 / 23），不上传原始陀螺仪和加速度计数据；服务器也没有输出原始数据的实现。静止时这个加速度接近零（多数静止段竖直分量在 ±0.2 m/s² 以内），运动中却与真实运动不符。进一步诊断：把前臂近似为绕肩转动的刚体，由朝向流算出传感器"应有"的加速度，与实测逐帧比较。实测的大小约为应有值的 0.6–0.9 倍，但方向几乎不相关（相关系数约 0），前后错开 ±300 ms 也对不上。若在每个追踪器的骨骼坐标系里允许一个固定旋转（拟合得 107–173°，各追踪器、各字段不同），留出动作上的相关系数升到 0.50–0.78，但积分位移仍只有真值的一半左右，误差 0.25–0.91 m。可见至少有两个问题：加速度与朝向之间存在未被正确处理的坐标系旋转；修正后仍有较大残差，可能来自固件滤波或时延。要拿到原始数据，必须改写并重刷所有追踪器的固件，而且即使拿到，消费级 IMU 做 1–2 秒二次积分能否达到所需精度也没有把握。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">4</span>逐条复查：还有没有别的办法</h2>
+  <div class="prose">
+    <p>按"信息从哪里来"逐项检查。每一项都尽量用本人数据做了实验。负例录制 <code>unity_20261103_225546</code> 依次包含：静止跪地、跪着动一边小腿、膝盖着地向后踢小腿。</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>可能的信息来源</th><th>实验结果</th><th>结论</th></tr></thead>
+      <tbody>
+        <tr><td>静止时小腿朝向</td><td>跪地与伸直指向只差约 12°，完整旋转差 23–27°</td><td><span class="tag t-bad">不可区分</span></td></tr>
+        <tr><td>加速度积分出高度</td><td>见第 3 节，连 0.5 m 的手臂运动都还原不出</td><td><span class="tag t-bad">不可用</span></td></tr>
+        <tr><td>动作量（小腿累计转动）＋教练阶段</td><td>11-02 四局游戏中 32 次真抬腿为 101–204°，另一条腿 22–48°；但负例里原地动小腿为 <b>约 250°</b>，比真抬腿还大</td><td><span class="tag t-warn">只能判断"动没动"</span></td></tr>
+        <tr><td>加速度统计特征（RMS、峰值）</td><td>真抬腿 RMS 0.9–2.6 m/s²，峰值 3.6–7.2；原地动 RMS 1.8，峰值 7.2，落在同一范围；向后踢的峰值 22–47 m/s²，能分出</td><td><span class="tag t-warn">只能排除踢腿</span></td></tr>
+        <tr><td>个人静止模板（每次校准采跪地与伸腿两个模板，在腰坐标系比较）</td><td>右腿两模板只差 <b>12°</b>；跪着不动时自身波动 10–20°；负例全程多被判为"更像伸腿"</td><td><span class="tag t-bad">不可区分</span></td></tr>
+        <tr><td>骨盆反应（抬腿时骨盆转动）</td><td>校准中观察到 14–20°，但鸟狗正确动作要求骨盆保持水平，用它判断等于奖励错误动作</td><td><span class="tag t-bad">不应使用</span></td></tr>
+        <tr><td>原始 IMU 自行融合</td><td>需改固件并重刷所有追踪器；精度无把握</td><td><span class="tag t-warn">成本高、未验证</span></td></tr>
+        <tr><td>按教练阶段直接显示</td><td>画面好看，但腿部不再是测量值，评分等于照抄教练</td><td><span class="tag t-bad">不能用于评价</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>针对性微调为什么也不行</h3>
+  <div class="prose">
+    <ul>
+      <li><b>输入相同，输出就相同。</b>模型是传感器历史的函数。第 1 节的姿势族在静止时给出相同的输入，任何权重都只能给出同一个答案。微调能改变的只是"这个答案选跪地还是选伸直"。</li>
+      <li><b>已经验证过一次。</b>三个 Ours 微调模型训练时见过教练的鸟狗（约 40 秒，单人），在本人数据上仍把伸直的腿画成偏跪地（第 2 节）。数据量可以再加，但加数据只会把先验推向"在这个时刻腿是伸直的"。</li>
+      <li><b>就算推成功了，也测不出错误动作。</b>把先验学成"伸腿阶段画伸直"以后，原地动小腿、代偿屈膝都会被画成标准伸腿，因为它们的信号与真抬腿重叠（本节表格）。对游戏评分而言，这和照抄教练效果相同。</li>
+      <li><b>能被模型利用的细微线索不稳定。</b>在教练单人数据上，近邻法只用小腿和腰就能把腿部误差压到 4 cm 左右，说明有个人习惯性线索（扭转、骨盆细节）可学；但本人数据中这些线索只有约 12°，小于跪地时的自然波动。</li>
+      <li><b>个性化微调缺标签。</b>要用本人数据微调，需要本人腿部的真实标签；而真实标签恰恰需要大腿上的传感器或摄像头才能得到。</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">5</span>可选方案对比</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>方案</th><th>能否评价伸腿</th><th>代价</th><th>主要风险</th></tr></thead>
+      <tbody>
+        <tr><td><b>小腿 + 气压计差分</b>（推荐先验证）</td><td>能，且能识别"大腿下垂＋屈膝"代偿</td><td>3 个气压计模块（两小腿＋腰），后处理即可，暂不需要重训</td><td>温漂、个体安装差异，需实验确认</td></tr>
+        <tr><td>小腿 IMU 移到大腿</td><td>鸟狗伸腿能评价（第 6 节：大腿误差 54°→12°）；膝角变成推断值</td><td>所有模型需按新布局重训；实时端与校准逻辑要改</td><td>臀桥、侧桥的小腿和膝角明显变差（第 6 节）</td></tr>
+        <tr><td>两条大腿各加一个 IMU（共 7 个）</td><td>能，信息最完整；第 6 节显示大腿、小腿各自只在一部分动作上有优势，两者都戴才能兼顾</td><td>需重训；佩戴更繁琐</td><td>工作量最大</td></tr>
+        <tr><td>改固件拿原始 IMU</td><td>不确定</td><td>改固件、重刷全部追踪器、自写融合</td><td>精度无保证</td></tr>
+        <tr><td>侧面摄像头</td><td>能</td><td>手机或网络摄像头</td><td>违反"只用穿戴设备"的项目约束</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">6</span>离线对比实验：小腿 IMU 与大腿 IMU</h2>
+  <div class="prose">
+    <p>为回答"移到大腿值不值得"，在不改硬件的前提下做了一次对照实验。教练的 Ours 录制本来就佩戴了大腿 IMU，所以两种布局都有真实输入可用。</p>
+    <ul>
+      <li><b>训练</b>：两个 StreamPoser，除腿部传感器位置（小腿：SMPL 4/5；大腿：1/2，挂在大腿前侧近膝处）外完全相同：同样 18 个 AMASS 子集、合成配置、超参数（20,000 次迭代）、随机种子。AMASS 验证损失几乎一样（小腿 0.01978，大腿 0.01961）。</li>
+      <li><b>评估</b>：两者都只用 AMASS 训练，在 Ours 全部 10 个动作的真实 IMU 上测试（都是没见过的数据）。各传感器按部署模型相同的方法去掉每段采集的安装偏移。腿部误差在世界坐标中计算（即画面所见）。</li>
+    </ul>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>鸟狗"腿抬起"帧（1822 帧）</th><th>小腿布局</th><th>大腿布局</th></tr></thead>
+      <tbody>
+        <tr><td>膝位置误差</td><td class="num">36.1 cm</td><td class="num"><b>8.8 cm</b></td></tr>
+        <tr><td>踝位置误差</td><td class="num">41.8 cm</td><td class="num"><b>20.2 cm</b></td></tr>
+        <tr><td>大腿方向误差</td><td class="num">54.2°</td><td class="num"><b>11.8°</b></td></tr>
+        <tr><td>膝角误差</td><td class="num">86.9°</td><td class="num"><b>15.3°</b></td></tr>
+        <tr><td>预测的大腿俯仰（标签 −26.5°）</td><td class="num">−68.9°（画成跪地）</td><td class="num"><b>−21.9°</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>动作（全部帧）</th><th>膝角误差 小腿→大腿</th><th>小腿方向误差 小腿→大腿</th><th>大腿方向误差 小腿→大腿</th><th>结论</th></tr></thead>
+      <tbody>
+        <tr><td>鸟狗</td><td class="num">49.5° → 48.8°</td><td class="num">34.4° → 41.5°</td><td class="num">32.2° → 19.4°</td><td><span class="tag t-ok">大腿更好</span>（伸腿帧见上表）</td></tr>
+        <tr><td>死虫 · 伸腿帧（715）</td><td class="num">34.0° → 9.6°</td><td class="num">37.6° → 48.7°</td><td class="num">16.3° → 32.7°</td><td><span class="tag t-warn">互有得失</span>：大腿被画得偏低</td></tr>
+        <tr><td>坐位</td><td class="num">37.8° → 18.2°</td><td class="num">11.8° → 17.1°</td><td class="num">43.6° → 18.2°</td><td><span class="tag t-ok">大腿更好</span></td></tr>
+        <tr><td>屈膝</td><td class="num">57.8° → 24.1°</td><td class="num">32.3° → 60.6°</td><td class="num">75.8° → 51.1°</td><td><span class="tag t-warn">互有得失</span></td></tr>
+        <tr><td>臀桥</td><td class="num">25.6° → 54.7°</td><td class="num">20.1° → 63.1°</td><td class="num">23.8° → 17.2°</td><td><span class="tag t-bad">大腿更差</span></td></tr>
+        <tr><td>侧桥</td><td class="num">13.6° → 54.0°</td><td class="num">21.4° → 76.5°</td><td class="num">30.9° → 34.4°</td><td><span class="tag t-bad">大腿更差</span></td></tr>
+        <tr><td>卧位猫</td><td class="num">51.8° → 79.9°</td><td class="num">48.1° → 65.3°</td><td class="num">15.4° → 25.9°</td><td><span class="tag t-bad">大腿更差</span></td></tr>
+        <tr><td>卷腹</td><td class="num">4.0° → 20.3°</td><td class="num">21.2° → 24.2°</td><td class="num">18.9° → 14.9°</td><td><span class="tag t-warn">互有得失</span></td></tr>
+        <tr><td>站位</td><td class="num">1.7° → 4.2°</td><td class="num">22.2° → 28.3°</td><td class="num">21.1° → 19.8°</td><td><span class="tag t-info">差别不大</span></td></tr>
+        <tr><td>站立伸展</td><td class="num">2.0° → 2.1°</td><td class="num">14.4° → 25.7°</td><td class="num">15.1° → 19.7°</td><td><span class="tag t-info">小腿版略好</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>结论与第 1 节的分析一致：没有传感器的那段骨骼只能靠先验去猜。小腿布局猜不出大腿，所以鸟狗伸腿错得最严重；大腿布局猜不出小腿，所以在大腿基本不动、靠膝关节变化的臀桥、侧桥、卧位猫上错得最严重。单纯换位置只是把歧义从一段骨骼挪到另一段，要同时兼顾，需要两段都有信息：两条大腿与两条小腿都佩戴 IMU（共 7 个），或小腿加上能测高度的气压计。</p>
+    <p class="small">限制：两个模型都未用 Ours 微调，真实与合成数据的差距使有传感器的那段骨骼也有 10–35° 误差，绝对数值不代表部署效果，只看相对差异；标签为单名教练的 SlimeVR 伪标签；去偏移使用了整段序列的标签，两种布局处理相同；死虫中大腿版把大腿画偏低的原因未查明。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">7</span>方案：气压计差分测小腿高度</h2>
+  <div class="prose">
+    <p>第 1 节的图里，三种姿势唯一不同的量就是小腿相对髋的高度 <i>h</i>。气压计直接测高度，不用积分，误差不随时间累积，正好补上这个量。</p>
+  </div>
+  <div class="cols">
+    <div class="box">
+      <h3>量级</h3>
+      <p>空气中气压随高度的变化约为 ρg ≈ 1.2 × 9.8 ≈ <b>11.8 Pa/m</b>，即 1 Pa ≈ 8.5 cm。小腿抬高 0.40 m 约对应 4.7 Pa。</p>
+      <p class="small">BMP280 数据手册给出的典型噪声在开启片上 IIR 滤波时约 0.2 Pa（折合约 2 cm）；BMP390、BMP581 更低。以上为手册典型值，需实测核对。</p>
+    </div>
+    <div class="box">
+      <h3>为什么用差分</h3>
+      <p>单个气压计受天气、空调、开关门影响，几分钟内可漂几帕。两小腿与腰各放一个，取"小腿 − 腰"的差值，环境变化在相减时抵消。</p>
+      <p class="small">鸟狗跪地时小腿比腰低约 0.5 m；伸直抬起后两者大致同高，差值约 6 Pa，远大于噪声。</p>
+    </div>
+    <div class="box">
+      <h3>如何算出大腿和膝</h3>
+      <p>已知：腰的朝向与位置（模型骨盆）、小腿的朝向（IMU）、小腿传感器相对腰的高度（气压计）。髋到小腿传感器的几何链只剩大腿俯仰一个未知数，由高度直接解出，膝角随之确定。</p>
+      <p class="small">大腿长度与零点在每组开局的四点跪姿中标定（此时大腿竖直，几何已知）。</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>精度需求：大腿长约 0.42 m，接近水平时大腿俯仰每变化 10°，膝的高度变化约 7 cm。所以只要差分高度精度达到 5–8 cm，就能把大腿角度定到 10° 左右，足以区分图中 A、B、C 三种姿势（h 分别约 0.40、0、0.26 m）。</p>
+    <p>接入方式：开发板（如 ESP32）读气压，以 10–25 Hz 经 UDP 发给 Python 端，与 IMU 数据按时间戳对齐。初期只做后处理：覆盖模型输出中该腿的大腿与膝；效果确认后再考虑作为模型输入重新训练。死虫的抬腿、臀桥的骨盆抬高（约 15–25 cm，余量较小）也可能受益。</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>风险</th><th>影响</th><th>对策</th></tr></thead>
+      <tbody>
+        <tr><td>体温导致的温度漂移</td><td>贴身后传感器缓慢升温，可能漂移数帕</td><td>差分、每组跪姿校零、外壳隔热并留通气孔</td></tr>
+        <tr><td>腿部运动产生的动压</td><td>0.5 m/s 时约 0.15 Pa</td><td>康复动作慢，影响小；只在保持期评价</td></tr>
+        <tr><td>片上滤波延迟</td><td>强滤波约 0.3–1 s 延迟</td><td>只在保持期判定高度，过渡期仅作参考</td></tr>
+        <tr><td>芯片间固定偏差</td><td>每颗芯片读数有偏置</td><td>每组跪姿校零</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">8</span>验证实验计划</h2>
+  <div class="prose">
+    <p>先用 2–3 块开发板做小实验，再决定是否正式接入。</p>
+    <ol>
+      <li><b>硬件</b>：开发板 + 气压计（建议 BMP390 或 BMP581；BMP280 也可先试），一块绑腰、一块或两块绑小腿，紧挨现有追踪器。</li>
+      <li><b>录制</b>（约 5 分钟）：四点跪姿静止 2 分钟；正常伸腿抬起 10 次；原地动小腿、膝盖悬空、向后踢小腿、大腿下垂屈膝代偿各 3 次。</li>
+      <li><b>指标</b>：
+        <ul>
+          <li>静止 2 分钟内差分高度漂移 &lt; 5 cm；</li>
+          <li>10 次真抬腿全部判为抬起，各类错误动作不判为抬起；</li>
+          <li>保持期差分高度的标准差 &lt; 3 cm；</li>
+          <li>由高度解出的大腿角与视频人工标注之差 &lt; 10°。</li>
+        </ul>
+      </li>
+      <li><b>判定</b>：指标达标，则接入实时系统；漂移超标，则改进隔热或改用更好的芯片；仍不行，则转向大腿 IMU 方案。</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">9</span>不确定之处</h2>
+  <div class="prose">
+    <ul>
+      <li>第 1 节的"严格不可测"只针对静止保持；运动中的信息原理上存在，本文结论是"现有 SlimeVR 数据无法利用"，不是"永远无法利用"。</li>
+      <li>SlimeVR 加速度在运动中失真：已确认存在坐标系旋转不一致，修正后的残差来源未确认（没有固件源码）。诊断用的"绕肩刚体转动"模型本身是近似，会压低可达到的相关系数。</li>
+      <li>教练数据的标签是 SlimeVR 伪标签，来自单人。第 6 节的对照实验只用了 AMASS 训练的模型，尚未在相同的 Ours 微调条件下复核。</li>
+      <li>负例实验只有一次录制、一位受试者；其中"抬起一边小腿"一段没能在数据中定位到。</li>
+      <li>气压计的噪声与漂移数字来自数据手册典型值和估算，必须以第 8 节实验为准。</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div>复现材料（均在 <code>realUse/</code> 下）：</div>
+  <div class="mono">recordings/calibration_20261103_215533 · 224627 · unity_20261103_002526 · 225546 · BirdDog_RingSkinC_Recorded_20261102_201237 / 205359 / 220051 / 221122</div>
+  <div class="mono">analysis/legs/：bird_dog_leg_eval.py · leg_state_margin.py · leg_lift_event.py · leg_motion_features.py · leg_template_test.py · shank_activity.py</div>
+  <div class="mono">analysis/acceleration/：acc_frame_test.py · acc_bias_fit.py · acc_3d_disp.py · acc_vs_kinematic.py · acc_frame_fix.py · shank_lift_zupt.py · bench_acc_test.py</div>
+  <div>第 6 节（服务器工作区 <code>realuse_waist_surface_20261030/</code>）：<span class="mono">experiments/run_thigh_layout_experiment.sh · experiments/eval_thigh_vs_shank.py · artifacts/thigh_vs_shank_eval.json · checkpoints/stream_s42_amass_thigh</span></div>
+</footer>
+
+</div>

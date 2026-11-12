@@ -1,0 +1,209 @@
+import os
+import torch
+from pathlib import Path
+from enum import Enum, auto
+
+
+class train_hypers:
+    """Hyperparameters for training."""
+    batch_size = int(os.environ.get('MOBILEPOSER_BATCH', 256))
+    num_workers = 8
+    num_epochs = int(os.environ.get('MOBILEPOSER_EPOCHS', 60))
+    accelerator = "gpu"
+    device = 0
+    lr = 1e-3
+
+
+class finetune_hypers:
+    """Hyperparamters for finetuning."""
+    batch_size = 32
+    num_workers = 8
+    num_epochs = 15
+    accelerator = "gpu"
+    device = 0
+    lr = 5e-5
+
+
+class paths:
+    """Relevant paths for MobilePoser. Change as necessary."""
+    # base_mobileposer/ package root
+    # Local: SparseIMU/  |  Server: /home/duanyuhan/dyh/motion/SparseIMU/
+    root_dir = Path(__file__).resolve().parents[1]
+    checkpoint = Path(os.environ.get("MOBILEPOSER_CHECKPOINT_DIR", root_dir / "checkpoints"))
+    smpl_file = root_dir / "mobileposer/smpl/basicmodel_m.pkl"
+    weights_file = root_dir / "checkpoints/weights.pth"
+    raw_amass = root_dir / "data/raw/AMASS"
+    amass_render_dir = root_dir / "data/rendered/AMASS"
+    raw_dip = root_dir / "data/raw/DIP_IMU"
+    raw_imuposer = root_dir / "data/raw/IMUPoser"
+    raw_ours = root_dir / "data/raw/ours"
+    processed_datasets = Path(os.environ.get("MOBILEPOSER_PROCESSED_DATASETS", root_dir / "data/processed_datasets"))
+    eval_dir = Path(os.environ.get("MOBILEPOSER_EVAL_DATASETS", processed_datasets / "eval"))
+    raw_totalcapture_official = root_dir / "data/raw/TotalCapture/raw"
+    calibrated_totalcapture = root_dir / "data/raw/TotalCapture/IMU"
+
+class model_config:
+    """MobilePoser Model configurations."""
+    # device
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    
+    # joint set
+    n_joints = int(os.environ.get('MOBILEPOSER_NSENS', 5))   # number of IMUs (5 = lower arms, lower legs, pelvis; 6 adds the head)
+    n_imu = 12*n_joints + (37 if os.environ.get('MOBILEPOSER_CTX') == '1' else 0) + (2 if os.environ.get('MOBILEPOSER_DOMAIN') == '1' else 0)   # per sensor 3 acc + 9 ori; [+37 body-context columns] [+2 annotation-convention (domain) token columns]
+    n_output_joints = 24                # 24 output joints
+    n_pose_output = n_output_joints*6   # 144 pose output (24 output joints * 6D rotation matrix)
+
+    # model config
+    past_frames = 40
+    future_frames = 5
+    total_frames = past_frames + future_frames
+
+
+class amass:
+    """AMASS dataset information."""
+    # device-location combinationsa
+    combos = {
+        'lw_rp_h': [0, 3, 4],
+        'rw_rp_h': [1, 3, 4],
+        'lw_lp_h': [0, 2, 4],
+        'rw_lp_h': [1, 2, 4],
+        'lw_lp': [0, 2],
+        'lw_rp': [0, 3],
+        'rw_lp': [1, 2],
+        'rw_rp': [1, 3],
+        'lp_h': [2, 4],
+        'rp_h': [3, 4],
+        'lp': [2],
+        'rp': [3],
+     }
+    if os.environ.get("MOBILEPOSER_TRAIN_COMBOS") in ("all_5imu", "all_6imu"):
+        combos = {"all": list(range(int(os.environ.get('MOBILEPOSER_NSENS', 5))))}
+    acc_scale = 30
+    vel_scale = 2
+
+    # left wrist, right wrist, left thigh, right thigh, head, pelvis
+    all_imu_ids = [0, 1, 2, 3, 4] 
+    imu_ids = [0, 1, 2, 3]
+
+    pred_joints_set = [*range(24)]
+    joint_sets = [18, 19, 1, 2, 15, 0]
+    ignored_joints = list(set(pred_joints_set) - set(joint_sets))
+
+
+class datasets:
+    """Dataset information."""
+    # FPS of data
+    fps = int(os.environ.get('MOBILEPOSER_FPS', 30))
+
+    # DIP dataset
+    dip_test = "dip_test.pt"
+    dip_train = "dip_train.pt"
+
+    # TotalCapture dataset
+    totalcapture = "totalcapture.pt"
+
+    # IMUPoser dataset
+    imuposer = "imuposer.pt"
+    imuposer_train = "imuposer_train.pt"
+    imuposer_test = "imuposer_test.pt"
+
+    # Locally captured SlimeVR / Unity tracker dataset
+    ours = "ours.pt"
+    ours_smpl = "ours_smpl.pt"
+
+    # Test datasets
+    test_datasets = {
+        'dip': dip_test,
+        'totalcapture': totalcapture,
+        'imuposer': imuposer_test,
+        'ours': ours,
+        'ours_smpl': ours_smpl
+    }
+
+    # Finetune datasets
+    finetune_datasets = {
+        'dip': dip_train,
+        'imuposer': imuposer_train,
+        'ours_smpl': ours_smpl
+    }
+
+    # AMASS datasets (add more as they become available in AMASS!)
+    amass_datasets = ['ACCAD', 'BioMotionLab_NTroje', 'BMLhandball', 'BMLmovi', 'CMU', 
+                      'DanceDB', 'DFaust_67', 'EKUT', 'Eyes_Japan_Dataset', 'HUMAN4D',
+                      'HumanEva', 'KIT', 'MPI_HDM05', 'MPI_Limits', 'MPI_mosh', 'SFU',
+                      'SSM_synced', 'TCD_handMocap', 'TotalCapture', 'Transitions_mocap']
+
+    # Root-relative joint positions
+    root_relative = False
+
+    # Window length of IMU and Pose data 
+    window_length = int(os.environ.get('MOBILEPOSER_WINDOW', 125))
+
+
+class joint_set:
+    """Joint sets configurations."""
+    gravity_velocity = -0.018
+
+    full = list(range(0, 24))
+    reduced = [0, 1, 2, 3, 4, 5, 6, 9, 12, 13, 14, 15, 16, 17, 18, 19]
+    ignored = [0, 7, 8, 10, 11, 20, 21, 22, 23]
+
+    n_full = len(full)
+    n_ignored = len(ignored)
+    n_reduced = len(reduced)
+
+    lower_body = [0, 1, 2, 4, 5, 7, 8, 10, 11]
+    lower_body_parent = [None, 0, 0, 1, 2, 3, 4, 5, 6]
+
+
+class eval_combos:
+    """Sensor combos for evaluation (superset of training combos).
+    Slots: 0=L-wrist, 1=R-wrist, 2=L-thigh, 3=R-thigh, 4=head.
+    These can be used with the pre-trained model via zero-masking; no re-training needed.
+    """
+    one_sensor = {
+        'lw': [0], 'rw': [1], 'lp': [2], 'rp': [3], 'h': [4],
+    }
+    two_sensor = {
+        'lw_rw': [0, 1], 'lw_lp': [0, 2], 'lw_rp': [0, 3],
+        'rw_lp': [1, 2], 'rw_rp': [1, 3], 'lp_rp': [2, 3],
+        'lw_h': [0, 4], 'rw_h': [1, 4], 'lp_h': [2, 4], 'rp_h': [3, 4],
+    }
+    three_sensor = {
+        'lw_rp_h': [0, 3, 4], 'rw_rp_h': [1, 3, 4],   # in training set
+        'lw_lp_h': [0, 2, 4], 'rw_lp_h': [1, 2, 4],   # in training set
+        'lw_rw_h': [0, 1, 4], 'lp_rp_h': [2, 3, 4],
+        'lw_rw_lp': [0, 1, 2], 'lw_rw_rp': [0, 1, 3],
+        'lw_lp_rp': [0, 2, 3], 'rw_lp_rp': [1, 2, 3],
+    }
+    four_sensor = {
+        'lw_rw_lp_rp': [0, 1, 2, 3],
+        'lw_rw_lp_h':  [0, 1, 2, 4],
+        'lw_rw_rp_h':  [0, 1, 3, 4],
+        'lw_lp_rp_h':  [0, 2, 3, 4],
+        'rw_lp_rp_h':  [1, 2, 3, 4],
+    }
+    five_sensor = {
+        'all': [0, 1, 2, 3, 4],
+    }
+    all_combos = {**one_sensor, **two_sensor, **three_sensor, **four_sensor, **five_sensor}
+
+
+class sensor:
+    """Sensor parameters."""
+    device_ids = {
+        'Left_phone': 0,
+        'Left_watch': 1,
+        'Left_headphone': 2,
+        'Right_phone': 3,
+        'Right_watch': 4
+    }
+
+
+class Devices(Enum):
+    """Device IDs."""
+    Left_Phone = auto()
+    Left_Watch = auto()
+    Right_Headphone = auto()
+    Right_Phone = auto()
+    Right_Watch = auto()

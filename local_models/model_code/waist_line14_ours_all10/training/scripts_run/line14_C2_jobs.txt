@@ -1,0 +1,9 @@
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints --fk-loss mean --seed 42 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints_geo --geom estp6 --fk-loss mean --seed 42 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant imu --fk-loss mean --seed 42 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints --fk-loss mean --seed 7 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints_geo --geom estp6 --fk-loss mean --seed 7 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant imu --fk-loss mean --seed 7 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints --fk-loss mean --seed 3 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant joints_geo --geom estp6 --fk-loss mean --seed 3 --gpu {GPU} --tag C2
+OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$PWD /home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_poser_chain.py --variant imu --fk-loss mean --seed 3 --gpu {GPU} --tag C2

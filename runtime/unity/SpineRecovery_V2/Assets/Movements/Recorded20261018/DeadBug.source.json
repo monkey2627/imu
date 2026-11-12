@@ -1,0 +1,27 @@
+{
+    "formatVersion": 1,
+    "actionId": "7",
+    "displayName": "死虫",
+    "version": 1,
+    "createdAtUtc": "2026-10-18T14:17:34.4364716Z",
+    "fbxFile": "7_v1.fbx",
+    "motionJsonFile": "7_v1.motion.json",
+    "trackerJsonFile": "7_v1.tracker.json",
+    "rawImuJsonFile": "7_v1.raw-imu.json",
+    "keyframesFile": "7_v1.keyframes.json",
+    "fbxSha256": "814aab722c8d5725e3e4fb0ee6dacec37a753fe2258c95ae8b1696ce86657e7c",
+    "motionJsonSha256": "580957a79fc5bde70b0a480cec63a6b80d25bdb889e5a21b1a166ce3ebf4f82f",
+    "trackerJsonSha256": "5a38cd0631b470bd67373b9a8058610e8852f276e2a20075c3a88a7848b30f00",
+    "rawImuJsonSha256": "4d5c44c56d1d877182cd4ec2380faaf5df081fd36674f18077010ccb18d8be98",
+    "keyframesSha256": "68a23e85cd399e2a1d8c624a0a03887713b7d0b37600fb29f053138e2d8707ff",
+    "rawImuFrameCount": 1783,
+    "rawImuSensorCount": 17,
+    "segments": [
+        {
+            "name": "7",
+            "firstFrame": 0,
+            "lastFrame": 1783,
+            "durationSeconds": 59.412208557128909
+        }
+    ]
+}

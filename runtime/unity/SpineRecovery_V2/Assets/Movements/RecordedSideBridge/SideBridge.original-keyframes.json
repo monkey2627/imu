@@ -1,0 +1,35 @@
+{
+    "formatVersion": 1,
+    "sourceClipAssetPath": "C:\\Users\\supermao\\AppData\\Local\\SpineFlow\\PoseRecordings\\5_侧桥_2.pose.json",
+    "sourceClipName": "5_侧桥_2",
+    "sourceClipLengthSeconds": 52.951202392578128,
+    "sourceFrameRate": 30.0,
+    "totalFrames": 1589,
+    "actionId": "5",
+    "displayName": "侧桥",
+    "sampleFps": 30,
+    "setCount": 1,
+    "savedAtUtc": "2026-10-18T14:17:18.9715262Z",
+    "keyframes": [
+        {
+            "name": "start",
+            "frame": 0,
+            "bodyParts": [
+                "whole_body"
+            ],
+            "holdSeconds": 0.0,
+            "followingSegmentName": "5",
+            "followingSegmentDurationSeconds": 52.951202392578128
+        },
+        {
+            "name": "end",
+            "frame": 1589,
+            "bodyParts": [
+                "whole_body"
+            ],
+            "holdSeconds": 0.0,
+            "followingSegmentName": "",
+            "followingSegmentDurationSeconds": 0.0
+        }
+    ]
+}

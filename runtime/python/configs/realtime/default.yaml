@@ -1,0 +1,16 @@
+layout: wrists_shanks_waist
+model: waist_mobileposer_amass
+anchor: auto
+fps: 60
+window: 91
+output_index: 80
+infer_every: 2
+acceleration_scale: 30.0
+output_port: 21200
+solarxr_endpoint: ws://127.0.0.1:21110
+checkpoint_root: checkpoints
+waist_checkpoint_root: checkpoints/realuse_waist_surface_20261030
+calibration_frames: 0
+upright_calibration_frames: 30
+upright_settle_seconds: 3.0
+output_lag_frames: 10

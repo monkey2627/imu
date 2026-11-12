@@ -1,0 +1,4 @@
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --target r2 --seed 42 --gpu {GPU} --data data_local/line14_cal_L1 --tag E6c_L1
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --target r2 --seed 7 --gpu {GPU} --data data_local/line14_cal_L1 --tag E6c_L1
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --target r2 --seed 42 --gpu {GPU} --data data_local/line14_cal_dev10 --tag E6c_dev10
+/home/duanyuhan/SoftWare/miniconda3/envs/mobileposer/bin/python scripts_run/line14_estimate_r1.py --feat phys --target r2 --seed 7 --gpu {GPU} --data data_local/line14_cal_dev10 --tag E6c_dev10

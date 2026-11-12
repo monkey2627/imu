@@ -1,0 +1,11 @@
+{
+  "prescriptionContractVersion": 2,
+  "items": [
+    {
+      "itemId": 1,
+      "actionId": "side_bridge",
+      "sets": 1,
+      "reps": 3
+    }
+  ]
+}

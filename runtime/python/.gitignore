@@ -1,0 +1,117 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.test_tmp/
+recordings/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
+# Custom
+**/.DS_Store
+**/__pycache__/
+**/lightning_logs/
+**/wandb/
+**/*.egg-info/
+**/.ipynb_checkpoints/
+**/checkpoints/
+**/data/
+**/tranpose/
+**/a.mp4
+
+# Local experiment outputs and recordings
+results/
+recordings/
+runtime_camera_fusion_full/
+mobilepose-feature-compare-*/
+.mobilepose-feature-compare-*/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npz
+*.pkl
+*.pickle
+*.npy
+*.jsonl
+*.jsonl.report.json
+*.pose.json
+*.tracker.json
+*.raw-imu.json
+*.motion.json
+*.fbx
+*.mp4
+*.mov
+*.avi
+*.webm
+
+# Large local artifacts without a reliable extension
+runtime_camera_fusion_smoke_data*
+SlimeVR-android.apk
+
+# SlimeVR / Android build and dependency output
+SlimeVR-Server/.gradle/
+SlimeVR-Server/.kotlin/
+SlimeVR-Server/**/build/
+SlimeVR-Server/node_modules/
+SlimeVR-Server/**/node_modules/
+android/.gradle/
+android/**/build/
+android/.idea/
+
+# JavaScript / Android local files
+node_modules/
+dist/
+.parcel-cache/
+.vite/
+.idea/
+*.iml
+local.properties
+
+# Local secrets and machine-specific settings
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+
+# Temporary reports and editor files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.vscode/

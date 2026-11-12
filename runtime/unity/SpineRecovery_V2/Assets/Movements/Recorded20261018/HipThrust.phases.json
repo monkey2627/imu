@@ -1,0 +1,47 @@
+{
+  "action": "HipThrust",
+  "source": "第二次膝关节记录/5_臀桥/1/5_v1.fbx",
+  "fps": 30,
+  "rotationOffset": 0,
+  "alignBodyOrientation": true,
+  "bodyYawDegrees": -90,
+  "routineStart": 180,
+  "routineEnd": 954,
+  "boundaries": [
+    210,
+    405,
+    591,
+    783,
+    945
+  ],
+  "peaks": [
+    285,
+    471,
+    654,
+    840
+  ],
+  "repeatStart": 30,
+  "repeatEnd": 765,
+  "beats": [
+    {
+      "upFrame": 88,
+      "holdEndFrame": 131,
+      "downFrame": 204
+    },
+    {
+      "upFrame": 269,
+      "holdEndFrame": 310,
+      "downFrame": 380
+    },
+    {
+      "upFrame": 446,
+      "holdEndFrame": 498,
+      "downFrame": 572
+    },
+    {
+      "upFrame": 639,
+      "holdEndFrame": 686,
+      "downFrame": 741
+    }
+  ]
+}
