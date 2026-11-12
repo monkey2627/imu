@@ -40,6 +40,7 @@ MAX_BIRD_DOG_HEADING_DEG = 120.0  # bird-dog reaches can expose a sensor pointin
 MAX_BIRD_DOG_MOUNT_STEP_DEG = 45.0
 MAX_BIRD_DOG_FIT_ERROR_DEG = 20.0
 MAX_BIRD_DOG_ARM_HEADING_DEG = 180.0  # any: 20-70 deg is typical, ~115 deg was measured on a right forearm
+MAX_BIRD_DOG_FOREARM_TILT_DEG = 30.0  # base-pose forearm vs vertical: 10-14 deg measured live (2026-11-12)
 REACH_SEARCH_FRAMES = 480        # the reaching arm's hold is searched over the reach step (8 s)
 # Against the coach's start pose only small heading fixes are trusted: after a standing yaw reset the
 # shanks are close, and larger differences are the user's pose (e.g. feet direction), not the sensor.
@@ -306,7 +307,8 @@ class PoseCalibrator:
         return "bird dog calibration: " + (", ".join(report) if report else "no usable sensors")
 
     def _solve_bird_dog_sequence(self) -> str:
-        """Forearms: a world heading (1 DOF) from the reach that holds each arm forward, level.
+        """Forearms: a right-multiplied tilt (2 DOF) that makes them vertical in the base hold, then a
+        world heading (1 DOF) from the reach that holds each arm forward, level.
         Shanks: a minimal swing fit to the base and reach holds.
 
         The forearm error measured live is a world-yaw (heading) error: it is identical with the arm
@@ -360,8 +362,38 @@ class PoseCalibrator:
             ground_report = "; gravity unavailable, world-up fallback"
 
         report = []
+        # Forearm mount tilt from the base hold: on all fours the forearms are vertical, which fixes
+        # the 2-DOF tilt of the sensor's bone axis (measured live 13-16 deg; it makes the forearm
+        # direction swing when the user only pronates). Verticality does not depend on the world
+        # heading, so this is solved first and the heading below uses the corrected axis.
+        base_down = -ground_up if gravity_vectors else np.array([0.0, -1.0, 0.0])
+        for label in ("lw", "rw"):
+            if label not in self.labels:
+                continue
+            if label not in base_measured or not base_still.get(label):
+                report.append(f"{label} base moving, tilt kept")
+                continue
+            index = self.labels.index(label)
+            current = self.headings[index] @ base_measured[label] @ self.corrections[index] @ BONE_AXES[label]
+            tilt = _angle_deg(_rotation_between(current, base_down))
+            if tilt > MAX_BIRD_DOG_FOREARM_TILT_DEG:
+                report.append(f"{label} base tilt {tilt:.0f} deg rejected (forearm not vertical?)")
+                continue
+            target_local = (self.corrections[index].T @ base_measured[label].T @
+                            self.headings[index].T @ base_down)
+            self.corrections[index] = self.corrections[index] @ _rotation_between(BONE_AXES[label], target_local)
+            report.append(f"{label} tilt {tilt:.0f} deg")
         # Forearm headings from the latest still, level hold of the reaching arm within its step
         # (the request moment itself may catch the arm already lowered).
+        # Reference "forward" = waist heading in the BASE hold. During a reach the lumbar/pelvis yaws
+        # (live 2026-11-12: -19 deg on the left reach, +18 deg on the right) while the shoulders stay
+        # square, so aligning each arm to the waist of its own reach turned both forearms ~18 deg inward.
+        base_forward = None
+        if "waist" in base_measured and base_still.get("waist"):
+            base_forward = _yaw(_best_yaw([self.headings[waist_index] @ base_measured["waist"] @
+                                           self.corrections[waist_index]]))
+        else:
+            report.append("base waist moving, arm heading uses the reach waist")
         for label, kind in (("lw", "bird_dog_left"), ("rw", "bird_dog_right")):
             if label not in self.labels:
                 continue
@@ -372,7 +404,7 @@ class PoseCalibrator:
             arm, waist = hold
             index = self.labels.index(label)
             direction = self.headings[index] @ arm @ self.corrections[index] @ BONE_AXES[label]
-            forward = _yaw(_best_yaw([self.headings[waist_index] @ waist @ self.corrections[waist_index]]))
+            forward = base_forward if base_forward is not None else                 _yaw(_best_yaw([self.headings[waist_index] @ waist @ self.corrections[waist_index]]))
             phi = _azimuth(forward @ np.array([0.0, 0.0, 1.0])) - _azimuth(direction)
             current = np.arctan2(self.headings[index][0, 2], self.headings[index][0, 0])
             self._set_heading(label, _wrap(current + phi), report, limit=MAX_BIRD_DOG_ARM_HEADING_DEG)
@@ -448,7 +480,7 @@ class PoseCalibrator:
                     f"{worst_error:.0f} deg (limit {MAX_BIRD_DOG_FIT_ERROR_DEG:.0f})")
         for label, candidate in candidates.items():
             self.corrections[self.labels.index(label)] = candidate
-        return ("bird dog calibration: forearm heading " + ", ".join(report) + "; shank fit " +
+        return ("bird dog calibration: forearm tilt/heading " + ", ".join(report) + "; shank fit " +
                 ", ".join(errors) + self._bird_dog_transition_error() + ground_report)
 
     def _latest_level_hold(self, label: str):

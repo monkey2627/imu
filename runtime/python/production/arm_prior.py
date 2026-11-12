@@ -10,8 +10,8 @@ When the measured forearm (calibrated input of the frame the output represents) 
 along the trunk's reach axis (arms forward while standing, the bird-dog reach, the dead-bug overhead
 reach), the upper arm is swung onto the forearm direction (straight elbow) and the output forearm is
 moved to the measurement.  Models differ in how faithfully they reproduce the forearm, so the sensed
-part is taken from the sensor.  The weight fades from 1 (within FULL_DEG) to 0 (beyond NONE_DEG) so
-nothing jumps.  Without a measurement the model's own forearm is used.  Not for poses where a level
+part is taken from the sensor.  The weight fades from 1 to 0 in both the azimuth to the reach axis
+(FULL_DEG..NONE_DEG) and the forearm elevation (LEVEL_FULL_DEG..LEVEL_NONE_DEG) so nothing jumps.  Without a measurement the model's own forearm is used.  Not for poses where a level
 forward forearm comes with a bent elbow by design (the side-bridge support arm): switch it off there.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ import torch
 PARENTS = [-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19, 20, 21]
 ARMS = ((16, 18, np.array([1.0, 0.0, 0.0])), (17, 19, np.array([-1.0, 0.0, 0.0])))   # shoulder, elbow, bone axis
 TRUNK = 9                       # spine3: chest frame (x left, y up the spine, z out of the chest)
-LEVEL_DEG = 30.0                # forearm elevation limit (world)
+LEVEL_FULL_DEG, LEVEL_NONE_DEG = 15.0, 45.0  # |forearm elevation| for full / no correction (world)
 FULL_DEG, NONE_DEG = 20.0, 40.0  # angle to the reach axis for full / no correction
 
 
@@ -59,14 +59,17 @@ def reach_weight(forearm_dir: np.ndarray, trunk: np.ndarray) -> float:
     the chest normal when the trunk is upright (arms forward), the spine when it lies flat (the
     bird-dog reach, the dead-bug overhead reach); whichever of the two is closer to horizontal.
     Compared by azimuth only, so a model trunk that is not exactly level still counts."""
+    # Elevation fades too: a hard level cutoff switched the full correction (~30-55 deg on the
+    # shoulder) on/off in one frame as the arm rose through it (recording 20261112_233633).
     elevation = np.degrees(np.arcsin(np.clip(forearm_dir[1], -1.0, 1.0)))
-    if abs(elevation) > LEVEL_DEG:
+    level = float(np.clip((LEVEL_NONE_DEG - abs(elevation)) / (LEVEL_NONE_DEG - LEVEL_FULL_DEG), 0.0, 1.0))
+    if level <= 0.0:
         return 0.0
     chest, spine = trunk @ np.array([0.0, 0.0, 1.0]), trunk @ np.array([0.0, 1.0, 0.0])
     reach = chest if np.hypot(chest[0], chest[2]) >= np.hypot(spine[0], spine[2]) else spine
     azimuth = lambda v: np.arctan2(v[0], v[2])
     angle = abs(np.degrees((azimuth(forearm_dir) - azimuth(reach) + np.pi) % (2 * np.pi) - np.pi))
-    return float(np.clip((NONE_DEG - angle) / (NONE_DEG - FULL_DEG), 0.0, 1.0))
+    return level * float(np.clip((NONE_DEG - angle) / (NONE_DEG - FULL_DEG), 0.0, 1.0))
 
 
 def straighten_reaching_arms(local, measured_forearms=None, return_weights: bool = False):

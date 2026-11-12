@@ -336,8 +336,11 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         float[] joints;
         lock (sync)
         {
-            int delay = serverModel != null && serverModel.StartsWith("waist_imudino")
-                ? Mathf.Max(displayBufferFrames, latestInferEvery + 1) : 0;
+            // Window IMUDINO needs a deep buffer; the stateful stream models emit continuous
+            // poses, so only cover one output interval plus one frame of packet jitter.
+            int delay = serverModel == null || !serverModel.StartsWith("waist_imudino") ? 0
+                : serverModel.StartsWith("waist_imudino_stream_") ? latestInferEvery + 1
+                : Mathf.Max(displayBufferFrames, latestInferEvery + 1);
             double elapsed = latestPoseReceivedTimestamp == 0 ? 0.0
                 : (double)(System.Diagnostics.Stopwatch.GetTimestamp() - latestPoseReceivedTimestamp)
                     / System.Diagnostics.Stopwatch.Frequency;

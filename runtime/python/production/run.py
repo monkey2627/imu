@@ -966,8 +966,9 @@ def main() -> None:
     parser.add_argument("--anchor", choices=("auto", "on", "off"), default="auto",
                          help="identity anchoring of sensed bones; auto follows the checkpoint manifest, "
                               "an explicit value that contradicts it is an error")
-    parser.add_argument("--infer-every", type=int, default=2,
-                         help=f"run the network every N frames of the {MODEL_FPS} Hz window (default: 2 -> 30 poses/s)")
+    parser.add_argument("--infer-every", type=int, default=None,
+                         help=f"run the network every N frames of the {MODEL_FPS} Hz window "
+                              "(default: 2 -> 30 poses/s; 1 for the stateful waist_imudino_stream_* models)")
     parser.add_argument("--output-fps", type=float, default=None,
                          help=f"alternative to --infer-every: poses per second; must divide {MODEL_FPS}")
     parser.add_argument("--include-contact", action="store_true", help=argparse.SUPPRESS)
@@ -1008,7 +1009,7 @@ def main() -> None:
         "checkpoint_root": DEFAULT_CHECKPOINT_ROOT,
         "model": DEFAULT_RUNTIME_MODEL,
         "anchor": "auto",
-        "infer_every": 2,
+        "infer_every": None,
         "upright_calibration_frames": 30,
         "upright_settle_seconds": 3.0,
         "port": 21200,
@@ -1027,6 +1028,9 @@ def main() -> None:
         if args.output_fps <= 0 or abs(ratio - round(ratio)) > 1e-6:
             parser.error(f"--output-fps must divide {MODEL_FPS} (e.g. 60, 30, 20), got {args.output_fps}")
         args.infer_every = int(round(ratio))
+    if args.infer_every is None:
+        # Stateful stream heads decode every frame anyway; emitting each one removes ~17 ms average wait.
+        args.infer_every = 1 if str(args.model).startswith("waist_imudino_stream_") else 2
     if args.infer_every < 1:
         parser.error("--infer-every must be >= 1")
     torch.set_num_threads(max(1, args.torch_threads))

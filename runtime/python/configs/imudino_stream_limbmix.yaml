@@ -1,0 +1,3 @@
+model: waist_imudino_stream_wristankle_limbmix
+# Stateful stream head: decode and emit every 60 Hz frame (infer ~4 ms, ~18 ms on token frames, RTX 4090).
+infer_every: 1

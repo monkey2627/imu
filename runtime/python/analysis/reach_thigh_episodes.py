@@ -23,7 +23,7 @@ args = ap.parse_args()
 for name in args.recordings:
     header, _, preds, quats, acc, pred_tick, _, raw_q, _ = load(resolve_recording_path(name))
     if args.replay is None:
-        keep = np.array([p["diagnostics"]["model"] == "waist_imudino_stream_wristankle" for p in preds])
+        keep = np.array([p["diagnostics"]["model"].startswith("waist_imudino_stream_") for p in preds])
         g = fk(unity_to_smpl(quat_xyzw_to_mat(raw_q)))
     else:
         from analysis.thigh_pitch_compare import stream_replay
