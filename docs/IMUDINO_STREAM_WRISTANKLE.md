@@ -22,6 +22,9 @@
 ## 2. 传感器挂点（数据合成用）
 
 配置：`$N/synth_ws/mobileposer/configs/wristankle_surface_imu.json`，SHA256 `0e9da789a72715b2cc165bb65fc0ac285b5a8334ff1b8f6f3e25fc9adce1c338`。
+**本地镜像**：`local_models/model_code/waist_imudino_fiveimu/synthesis/`（该配置、旧配置、服务器实际使用的 `surface_imu.py` / `no_head_layouts.py` /
+`run_synth.sh` / `validate_surface_data.py`，逐字节复制并记录哈希；其 README 列出每个挂点的三角面、顶点、重心权重与中性位置，以及合成流程对应的函数）。
+本地其它模型包里的同名 `surface_imu.py` / `no_head_layouts.py` 是旧副本，哈希不同。
 生成脚本：`local_models/model_code/waist_imudino_fiveimu/downstream/make_wristankle_config.py`（服务器副本 `$N/make_wristankle_config.py`）。
 
 | 标签 | 骨骼（方向来源） | 位置 | 与旧配置相比 |
@@ -181,6 +184,42 @@ cd $N/imudino_stream && CUDA_VISIBLE_DEVICES=0 python -m stream.train_stream \
   `waist_imudino_stream_wristankle_limbmix`（增广版，step 58000）。各自目录 `local_models/checkpoints/<ID>/` 下需有 `best.pt` 与 `imudino.pt`。
   Unity 列表名分别为 "IMUDINO Stream / wrist+ankle" 与 "IMUDINO Stream / wrist+ankle limb-mix"。
 - 启动：`python -m production.run --model waist_imudino_stream_wristankle_limbmix`（或原版 ID；在 `runtime/python` 下）。
+### 7.1 本地文件布局（代码一份，权重三份）
+
+`model_code/` 下只有一个 IMUDINO 目录：三个 IMUDINO 模型共用同一个冻结 backbone（`imudino.py`）与 IMU 预处理（`downstream/`），
+流式版的代码直接加在该包里；原版与增广版网络结构完全相同，只是权重不同。运行时按模型 ID 在
+`production/model_backends.py` 的 `WAIST_MODEL_FILES` 中查到 kind 与 checkpoint 路径。
+
+代码 `local_models/model_code/waist_imudino_fiveimu/`：
+
+| 文件 / 目录 | 用途 | 使用者 |
+|---|---|---|
+| `imudino.py`、`torch_blocks.py`、`model_factory.py` | 冻结的 IMUDINO backbone（本地推理兼容版） | 全部 |
+| `downstream/` | 服务器窗口版的数据处理、head、训练、验证；`to_imu6`、`encode_imu` 被流式版复用；`make_wristankle_config.py` 生成新挂点 | 全部 |
+| `model_entry.py` | 窗口版在线 adapter（`FiveIMUAdapter`，多窗口平均，`MOTION_RECOVER_IMUDINO_LAG`） | `waist_imudino_fiveimu` |
+| `stream_entry.py` | 流式版在线 adapter（`StreamAdapter`，lag 1） | 两个 stream 模型 |
+| `stream/common.py` | 训练与在线共用的调度与每帧特征 | 两个 stream 模型（训练 + 在线） |
+| `stream/model.py` | `StreamHead`（GRU） | 同上 |
+| `stream/prepare_stream.py`、`train_stream.py`、`eval_stream.py` | 特征提取、训练、留出集评估（服务器运行） | 训练端 |
+| `stream/synth_birddog_limbmix.py` | BirdDogMix 肢体重组增广合成（服务器运行） | 增广版训练端 |
+| `synthesis/` | 手腕/脚腕/腰部挂点配置与服务器合成代码的本地只读镜像（见第 2 节） | 训练端（审计用） |
+
+权重 `local_models/checkpoints/`（每个目录都必须同时有 `best.pt` 与 `imudino.pt`，后者为同一份 backbone 权重）：
+
+| 目录 = 模型 ID | 内容 | Unity 列表名 |
+|---|---|---|
+| `waist_imudino_fiveimu/` | 窗口版 head `best.pt` + `imudino.pt` + `manifest.json`（旧挂点） | IMUDINO / Five IMU (AMASS + BirdDog) |
+| `waist_imudino_stream_wristankle/` | 流式原版 `best.pt`（step 48000）；`best_step10000.pt` 为早期中途版本备份 | IMUDINO Stream / wrist+ankle |
+| `waist_imudino_stream_wristankle_limbmix/` | 流式增广版 `best.pt`（step 58000） | IMUDINO Stream / wrist+ankle limb-mix |
+
+服务器原件：`$N/runs/stream_wristankle/best.pt` 与 `$N/runs/stream_wristankle_limbmix/best.pt`（另有 `latest.pt`、`metrics.jsonl`）。
+
+同步到其他电脑（如游戏电脑）时需带上：`checkpoints/` 下两个 `waist_imudino_stream_*` 目录；`model_code/waist_imudino_fiveimu/` 中的
+`stream_entry.py`、`stream/`、更新后的 `model_entry.py`；`runtime/python/production/model_backends.py` 与 `run.py`；
+Unity 的 `MobilePoseWebSocketSource.cs`（需重新编译）。
+
+### 7.2 运行时行为
+
 - `push()` 只存样本；`infer()` 按帧顺序补齐所有未处理帧，严格执行第 4 节调度；历史缓冲 480+604 帧，保证 `infer` 落后时 token 窗口不被截短。
 - 一致性：同一序列按 1/2/3 帧不规则节拍逐帧推入，与训练时整段前向的输出最大差 0.056°。
 - 本机 RTX 4090：`infer` 中位 3.7 ms，p99 约 18 ms（每 16 帧一次 backbone）。

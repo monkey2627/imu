@@ -2,7 +2,13 @@
 
 本目录按 checkpoint ID 拆成 17 个同级模型。每个目录都自带运行、网络、训练和数据处理代码，不引用其他模型目录，也没有公共网络或公共训练目录。
 
-新增 [`waist_imudino_fiveimu`](./waist_imudino_fiveimu/)：冻结 IMUDINO 编码器 + 五 IMU 下游姿态头，AMASS 18 子集及 BirdDog 训练。权重为 `../checkpoints/waist_imudino_fiveimu/{best.pt,imudino.pt}`；预处理/训练/验证在自身 `downstream/`，在线入口为 `model_entry.py`。详见 [部署说明](../../docs/IMUDINO_REALUSE.md)。下述 MobilePoser 目录约定适用于原 16 个模型。
+新增 [`waist_imudino_fiveimu`](./waist_imudino_fiveimu/)：冻结 IMUDINO 编码器 + 五 IMU 下游姿态头，AMASS 18 子集及 BirdDog 训练。权重为 `../checkpoints/waist_imudino_fiveimu/{best.pt,imudino.pt}`；预处理/训练/验证在自身 `downstream/`，在线入口为 `model_entry.py`。详见 [部署说明](../../docs/IMUDINO_REALUSE.md)。
+
+同一目录还承载两个流式模型 `waist_imudino_stream_wristankle` 与 `waist_imudino_stream_wristankle_limbmix`（手腕/脚腕佩戴，2026-11-12）：
+在线入口 `stream_entry.py`，训练/特征/增广/评估代码在 `stream/`，与窗口版共用 backbone 和 `downstream/` 预处理，因此不另建代码目录；
+权重在 `../checkpoints/<模型ID>/{best.pt,imudino.pt}`。详见 [IMUDINO_STREAM_WRISTANKLE.md](../../docs/IMUDINO_STREAM_WRISTANKLE.md) 第 7.1 节。
+
+下述 MobilePoser 目录约定适用于原 16 个模型。
 
 ```text
 model_code/
