@@ -4,7 +4,7 @@
 
 新增 [`waist_imudino_fiveimu`](./waist_imudino_fiveimu/)：冻结 IMUDINO 编码器 + 五 IMU 下游姿态头，AMASS 18 子集及 BirdDog 训练。权重为 `../checkpoints/waist_imudino_fiveimu/{best.pt,imudino.pt}`；预处理/训练/验证在自身 `downstream/`，在线入口为 `model_entry.py`。详见 [部署说明](../../docs/IMUDINO_REALUSE.md)。
 
-同一目录还承载两个流式模型 `waist_imudino_stream_wristankle` 与 `waist_imudino_stream_wristankle_limbmix`（手腕/脚腕佩戴，2026-11-12）：
+同一目录还承载三个流式模型：`waist_imudino_stream_wristankle`、`waist_imudino_stream_wristankle_limbmix`（2026-11-12）与 `waist_imudino_stream_deadbug_limbmix`（2026-11-13）：
 在线入口 `stream_entry.py`，训练/特征/增广/评估代码在 `stream/`，与窗口版共用 backbone 和 `downstream/` 预处理，因此不另建代码目录；
 权重在 `../checkpoints/<模型ID>/{best.pt,imudino.pt}`。详见 [IMUDINO_STREAM_WRISTANKLE.md](../../docs/IMUDINO_STREAM_WRISTANKLE.md) 第 7.1 节。
 

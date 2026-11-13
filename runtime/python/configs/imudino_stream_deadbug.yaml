@@ -1,0 +1,3 @@
+model: waist_imudino_stream_deadbug_limbmix
+# Stateful stream head: decode and emit every 60 Hz frame.
+infer_every: 1

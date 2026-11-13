@@ -180,14 +180,14 @@ cd $N/imudino_stream && CUDA_VISIBLE_DEVICES=0 python -m stream.train_stream \
 
 - 模型 ID `waist_imudino_stream_wristankle`，代码 `local_models/model_code/waist_imudino_fiveimu/stream_entry.py::StreamAdapter`，
   已在 `production/model_backends.py` 注册（kind `imudino_stream`，lag 1 帧），Unity 模型列表已加"IMUDINO Stream / wrist+ankle"，并沿用 IMUDINO 的显示缓冲。
-- 两个模型 ID：`waist_imudino_stream_wristankle`（原版，`best.pt` = step 48000；旧 step 10000 备份为 `best_step10000.pt`）、
-  `waist_imudino_stream_wristankle_limbmix`（增广版，step 58000）。各自目录 `local_models/checkpoints/<ID>/` 下需有 `best.pt` 与 `imudino.pt`。
-  Unity 列表名分别为 "IMUDINO Stream / wrist+ankle" 与 "IMUDINO Stream / wrist+ankle limb-mix"。
-- 启动：`python -m production.run --model waist_imudino_stream_wristankle_limbmix`（或原版 ID；在 `runtime/python` 下）。
-### 7.1 本地文件布局（代码一份，权重三份）
+- 三个流式模型 ID：`waist_imudino_stream_wristankle`（原版，step 48000）、
+  `waist_imudino_stream_wristankle_limbmix`（BirdDogMix，step 58000）与
+  `waist_imudino_stream_deadbug_limbmix`（DeadBugMix，step 60000）。各自目录 `local_models/checkpoints/<ID>/` 下需有 `best.pt` 与 `imudino.pt`。
+- 启动 DeadBug 模型：`python -m production.run --config configs/imudino_stream_deadbug.yaml`（在 `runtime/python` 下）。
+### 7.1 本地文件布局（代码一份，权重四份）
 
-`model_code/` 下只有一个 IMUDINO 目录：三个 IMUDINO 模型共用同一个冻结 backbone（`imudino.py`）与 IMU 预处理（`downstream/`），
-流式版的代码直接加在该包里；原版与增广版网络结构完全相同，只是权重不同。运行时按模型 ID 在
+`model_code/` 下只有一个 IMUDINO 目录：四个 IMUDINO 模型共用同一个冻结 backbone（`imudino.py`）与 IMU 预处理（`downstream/`），
+流式版的代码直接加在该包里；三个流式 head 网络结构完全相同，只是权重不同。运行时按模型 ID 在
 `production/model_backends.py` 的 `WAIST_MODEL_FILES` 中查到 kind 与 checkpoint 路径。
 
 代码 `local_models/model_code/waist_imudino_fiveimu/`：
@@ -197,11 +197,13 @@ cd $N/imudino_stream && CUDA_VISIBLE_DEVICES=0 python -m stream.train_stream \
 | `imudino.py`、`torch_blocks.py`、`model_factory.py` | 冻结的 IMUDINO backbone（本地推理兼容版） | 全部 |
 | `downstream/` | 服务器窗口版的数据处理、head、训练、验证；`to_imu6`、`encode_imu` 被流式版复用；`make_wristankle_config.py` 生成新挂点 | 全部 |
 | `model_entry.py` | 窗口版在线 adapter（`FiveIMUAdapter`，多窗口平均，`MOTION_RECOVER_IMUDINO_LAG`） | `waist_imudino_fiveimu` |
-| `stream_entry.py` | 流式版在线 adapter（`StreamAdapter`，lag 1） | 两个 stream 模型 |
-| `stream/common.py` | 训练与在线共用的调度与每帧特征 | 两个 stream 模型（训练 + 在线） |
+| `stream_entry.py` | 流式版在线 adapter（`StreamAdapter`，lag 1） | 三个 stream 模型 |
+| `stream/common.py` | 训练与在线共用的调度与每帧特征 | 三个 stream 模型（训练 + 在线） |
 | `stream/model.py` | `StreamHead`（GRU） | 同上 |
 | `stream/prepare_stream.py`、`train_stream.py`、`eval_stream.py` | 特征提取、训练、留出集评估（服务器运行） | 训练端 |
 | `stream/synth_birddog_limbmix.py` | BirdDogMix 肢体重组增广合成（服务器运行） | 增广版训练端 |
+| `stream/synth_deadbug_limbmix.py` | DeadBugMix 上下肢重组增广合成（服务器原件镜像） | DeadBug 训练端 |
+| `stream/run_deadbug_20261113.sh`、`DEADBUG_TRAINING_20261113.md` | DeadBug 服务器训练命令与实验说明 | 复现/审计 |
 | `synthesis/` | 手腕/脚腕/腰部挂点配置与服务器合成代码的本地只读镜像（见第 2 节） | 训练端（审计用） |
 
 权重 `local_models/checkpoints/`（每个目录都必须同时有 `best.pt` 与 `imudino.pt`，后者为同一份 backbone 权重）：
@@ -211,10 +213,11 @@ cd $N/imudino_stream && CUDA_VISIBLE_DEVICES=0 python -m stream.train_stream \
 | `waist_imudino_fiveimu/` | 窗口版 head `best.pt` + `imudino.pt` + `manifest.json`（旧挂点） | IMUDINO / Five IMU (AMASS + BirdDog) |
 | `waist_imudino_stream_wristankle/` | 流式原版 `best.pt`（step 48000）；`best_step10000.pt` 为早期中途版本备份 | IMUDINO Stream / wrist+ankle |
 | `waist_imudino_stream_wristankle_limbmix/` | 流式增广版 `best.pt`（step 58000） | IMUDINO Stream / wrist+ankle limb-mix |
+| `waist_imudino_stream_deadbug_limbmix/` | AMASS + DeadBug + DeadBugMix `best.pt`（step 60000）+ `manifest.json` | IMUDINO Stream / deadbug limb-mix |
 
-服务器原件：`$N/runs/stream_wristankle/best.pt` 与 `$N/runs/stream_wristankle_limbmix/best.pt`（另有 `latest.pt`、`metrics.jsonl`）。
+DeadBug 服务器原件：`/home/duanyuhan/dyh/motion/lines/imudino_deadbug_20261113/runs/stream_deadbug_limbmix/best.pt`。
 
-同步到其他电脑（如游戏电脑）时需带上：`checkpoints/` 下两个 `waist_imudino_stream_*` 目录；`model_code/waist_imudino_fiveimu/` 中的
+同步到其他电脑（如游戏电脑）时需带上：`checkpoints/` 下所需的 `waist_imudino_stream_*` 目录；`model_code/waist_imudino_fiveimu/` 中的
 `stream_entry.py`、`stream/`、更新后的 `model_entry.py`；`runtime/python/production/model_backends.py` 与 `run.py`；
 Unity 的 `MobilePoseWebSocketSource.cs`（需重新编译）。
 
@@ -318,3 +321,11 @@ BirdDog 验证误差 6.90 → 6.27°，AMASS 不变；平滑度与耗时同原�
 - BirdDog 是视频伪标签，不是动捕真值；BirdDogMix 的拼接姿态不保证物理合理（膝盖可能离地或穿地），只用于 IMU 合成。
 - 训练只用合成 IMU；SlimeVR 实际噪声、绑带滑动、软组织未建模。
 - 旧位置的录制（2026-11-12 之前）只能用于看平滑度，不能评估精度。
+
+## 10. DeadBug 专用流式模型（2026-11-13）
+
+模型 ID 为 `waist_imudino_stream_deadbug_limbmix`，传感器顺序、60 Hz 调度、流式状态、1 帧模型延迟和根节点处理均与另外两个 wrist/ankle 流式模型一致。它只替换 `StreamHead` 权重，因此网页模型选择器、Unity 模型菜单和热切换走同一生产路径。
+
+训练使用 18 个 AMASS 子集、DeadBug 与 DeadBugMix；DeadBug 数据来自 36 个源视频的 224 个 DuoMo 伪标签片段，按源视频哈希分组后做确定性 10% 留出。DeadBugMix 仅由训练视频生成，包含 `cross`、`armonly` 和 `legonly` 三类上下肢重组。冻结 backbone，fresh head 训练 60,000 steps，最佳 checkpoint 即 step 60000；最终验证为 AMASS 5.901°、DeadBug 10.009°，两者均值 7.955°。
+
+本地 checkpoint 的 SHA-256 为 `5ff2f8efd44ff6b9f92b35647972224aaeb7f4a99d917a2264f7f20044ce291e`。完整数据、缓存和训练日志保留在服务器；本地只保留部署权重、manifest、训练说明、启动脚本和 DeadBugMix 合成源码。

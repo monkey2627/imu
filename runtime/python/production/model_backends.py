@@ -50,6 +50,8 @@ WAIST_MODEL_FILES = {
     "waist_imudino_stream_wristankle": ("imudino_stream", "waist_imudino_stream_wristankle/best.pt"),
     # Same head + BirdDogMix limb-recombination augmentation (decouples arm reach from leg lift).
     "waist_imudino_stream_wristankle_limbmix": ("imudino_stream", "waist_imudino_stream_wristankle_limbmix/best.pt"),
+    # 2026-11-13: AMASS + DeadBug/DeadBugMix, same wrist/ankle streaming contract and fresh head.
+    "waist_imudino_stream_deadbug_limbmix": ("imudino_stream", "waist_imudino_stream_deadbug_limbmix/best.pt"),
 }
 WAIST_MODEL_LABELS = {
     "waist_mobileposer_amass": "MobilePose / AMASS",
@@ -71,6 +73,7 @@ WAIST_MODEL_LABELS = {
     "waist_imudino_fiveimu": "IMUDINO / Five IMU (AMASS + BirdDog)",
     "waist_imudino_stream_wristankle": "IMUDINO Stream / wrist+ankle",
     "waist_imudino_stream_wristankle_limbmix": "IMUDINO Stream / wrist+ankle limb-mix",
+    "waist_imudino_stream_deadbug_limbmix": "IMUDINO Stream / deadbug limb-mix",
 }
 WAIST_CHECKPOINT_ROOT = paths.waist_checkpoint
 

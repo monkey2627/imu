@@ -38,11 +38,11 @@ def angle_deg(a, b):
 
 
 class Sequences:
-    def __init__(self, paths, val):
+    def __init__(self, paths, val, special_prefix="BirdDog"):
         self.items = []
         for path in paths:
             data = torch.load(path, map_location="cpu", weights_only=False)
-            bird = path.name.startswith("BirdDog")
+            bird = path.name.startswith(special_prefix)
             for s in data["sequences"]:
                 if s["val"] == val:
                     frames = torch.arange(len(s["imu"]))
@@ -93,7 +93,7 @@ def loss_fn(pred, tgt, warmup, vel_weight):
 
 
 @torch.no_grad()
-def validate(head, val, device, warmup, max_seqs=400):
+def validate(head, val, device, warmup, max_seqs=400, special_name="birddog"):
     head.eval()
     out = {"amass": [], "birddog": []}
     jit = {"amass": [], "birddog": []}
@@ -119,6 +119,8 @@ def validate(head, val, device, warmup, max_seqs=400):
                            "pred2frame_p99": round(float(torch.quantile(j[:2_000_000], .99)), 2),
                            "gt2frame_p99": round(float(torch.quantile(gj[:2_000_000], .99)), 2)}
     head.train()
+    if special_name != "birddog" and "birddog" in report:
+        report[special_name] = report.pop("birddog")
     return report
 
 
@@ -135,6 +137,8 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--vel-weight", type=float, default=1.0)
     ap.add_argument("--bird-fraction", type=float, default=0.15)
+    ap.add_argument("--special-prefix", default="BirdDog", help="Dataset prefix for exercise oversampling")
+    ap.add_argument("--special-name", default="birddog", help="Exercise name in validation metrics")
     ap.add_argument("--val-every", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
@@ -145,7 +149,7 @@ def main():
     missing = [str(p) for p in paths if not p.exists()]
     if missing:
         raise FileNotFoundError(missing)
-    train, val = Sequences(paths, False), Sequences(paths, True)
+    train, val = Sequences(paths, False, args.special_prefix), Sequences(paths, True, args.special_prefix)
     leak = {s["group"] for s in train.items} & {s["group"] for s in val.items}
     if leak:
         raise ValueError(f"group leakage: {list(leak)[:3]}")
@@ -177,7 +181,7 @@ def main():
             print(f"[train] step={step} pos={p:.5f} vel={v:.6f} lr={sched.get_last_lr()[0]:.2e}", flush=True)
             running.clear()
         if step % args.val_every == 0 or step == args.steps:
-            rep = validate(head, val, device, args.warmup)
+            rep = validate(head, val, device, args.warmup, special_name=args.special_name)
             score = sum(r["meanLocalAngleDeg"] for r in rep.values()) / len(rep)
             state = {"head": head.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
                      "step": step, "best": min(best, score), "args": vars(args) | {"cache_root": str(args.cache_root),

@@ -107,7 +107,8 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "waist_mobileposer_ours_offsetfree", "waist_streamposer_ours_offsetfree",
         "waist_line14_ours_offsetfree",
         "waist_imudino_fiveimu", "waist_imudino_stream_wristankle",
-        "waist_imudino_stream_wristankle_limbmix"
+        "waist_imudino_stream_wristankle_limbmix",
+        "waist_imudino_stream_deadbug_limbmix"
     };
     private static readonly string[] ModelLabels =
     {
@@ -120,7 +121,8 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "MobilePoser / Ours offset-free", "StreamPoser / Ours offset-free",
         "Line14 / Ours offset-free",
         "IMUDINO / Five IMU (AMASS + BirdDog)", "IMUDINO Stream / wrist+ankle",
-        "IMUDINO Stream / wrist+ankle limb-mix"
+        "IMUDINO Stream / wrist+ankle limb-mix",
+        "IMUDINO Stream / deadbug limb-mix"
     };
 
     public bool IsConnected { get; private set; }

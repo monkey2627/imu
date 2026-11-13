@@ -7,15 +7,17 @@ Git history is intentionally not used to decide which copy is authoritative.
 | Python runtime and analysis | `runtime/python/` | Same | Workspace source is authoritative. |
 | SlimeVR | `runtime/slimevr/SlimeVR-Server/` | Same | Workspace source is authoritative. It was verified byte-for-byte against the former desktop source on 2026-11-11; rebuild generated dependencies locally. |
 | Unity | `runtime/unity/SpineRecovery_V2/` | Same | Workspace source is authoritative. Open it with Unity 2022.3.62f3c1 to regenerate `Library/`, IDE projects, and user-local settings. |
-| Retained model code | The code packaged with each selected checkpoint | `local_models/model_code/<model_id>/` | Each of the 17 models owns a private runtime/network, training, and data-processing copy. Do not reintroduce a shared workspace-level training package. |
+| Retained model code | The code packaged with each selected checkpoint | `local_models/model_code/<model_id>/` | The 17 code packages retain private runtime/network, training, and data-processing copies; the four IMUDINO model IDs intentionally share one package. Do not reintroduce a shared workspace-level training package. |
 | Training data | Server `data/`, `pnp_workspace/data/`, `line14_workspace/`, `deadbug60/`, and related training inputs | No full local copy | Server-only. Do not mirror datasets or generated processed `.pt` files. |
 | Training outputs and caches | Server `checkpoints/`, `logs/`, `artifacts/`, `cache/`, `smoke/` | No training-output copy | Server-only by default. Export only selected validated checkpoints and summaries into `local_models/` or `sync/`. |
 
-The runtime uses two checkpoint groups: 17 model IDs (the original 16 waist-surface models plus IMUDINO) are centralized in `local_models/checkpoints/<model_id>/`, and the two legacy PNP models remain under `runtime/python/checkpoints/<model_id>/`. Each model ID has an independent directory in `local_models/model_code/<model_id>/` containing private runtime/network, training, and data-processing code. The production application runs from the architecture-neutral `runtime/python/production/` package; model algorithms connect only through `production/model_backends.py`. Model-package copies are independently inspectable handoff snapshots.
+The runtime uses two checkpoint groups: 20 model IDs (the original 16 waist-surface models plus four IMUDINO variants) are centralized in `local_models/checkpoints/<model_id>/`, and the two legacy PNP models remain under `runtime/python/checkpoints/<model_id>/`. The 16 waist-surface families have independent code directories; all IMUDINO variants share `model_code/waist_imudino_fiveimu/` because their deployed backbone, preprocessing, and stream architecture are identical. The production application runs from the architecture-neutral `runtime/python/production/` package; model algorithms connect only through `production/model_backends.py`.
 
 ## Server paths
 
 - IMUDINO training authority: `/home/duanyuhan/dyh/motion/IMUDINO-Release/`. The selected five-IMU `best.pt`, required `imudino.pt`, and private source snapshot were exported read-only on 2026-11-11 into model ID `waist_imudino_fiveimu`; training data, caches and renderings remain on the server. See `../docs/IMUDINO_REALUSE.md` and its deployment manifest. This adds a 17th model package to the original 16-model catalog.
+
+- DeadBug stream training authority: `/home/duanyuhan/dyh/motion/lines/imudino_deadbug_20261113/`. Its selected `runs/stream_deadbug_limbmix/best.pt`, manifest, synthesis script, and training recipe were exported read-only on 2026-11-13 as `waist_imudino_stream_deadbug_limbmix`; large processed datasets, caches, and logs remain server-only.
 
 - Training workspace: `/home/duanyuhan/dyh/motion/lines/realuse_waist_surface_20261030/`
 - Python Git checkout (not the training workspace): `/home/duanyuhan/dyh/motion/realUse/`
