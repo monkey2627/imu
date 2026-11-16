@@ -108,7 +108,10 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "waist_line14_ours_offsetfree",
         "waist_imudino_fiveimu", "waist_imudino_stream_wristankle",
         "waist_imudino_stream_wristankle_limbmix",
-        "waist_imudino_stream_deadbug_limbmix"
+        "waist_imudino_stream_deadbug_limbmix",
+        "waist_imudino_stream_deadbug_rehabv5",
+        "waist_imudino_stream_bridge_rehabv5",
+        "waist_imudino_stream_deadbug_simreal"
     };
     private static readonly string[] ModelLabels =
     {
@@ -122,13 +125,31 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "Line14 / Ours offset-free",
         "IMUDINO / Five IMU (AMASS + BirdDog)", "IMUDINO Stream / wrist+ankle",
         "IMUDINO Stream / wrist+ankle limb-mix",
-        "IMUDINO Stream / deadbug limb-mix"
+        "IMUDINO Stream / deadbug limb-mix",
+        "IMUDINO Stream / deadbug RehabV5 sim",
+        "IMUDINO Stream / bridge RehabV5 sim",
+        "IMUDINO Stream / deadbug sim+real"
     };
 
     public bool IsConnected { get; private set; }
     public int LatestFrame { get { lock (sync) return latestFrame; } }
     public string Status { get { lock (sync) return status; } }
     public string LatestControlMessage { get { lock (sync) return controlMessage; } }
+    public ExerciseCalibrationFrame LatestExerciseCalibration { get; private set; }
+
+    [Serializable]
+    public sealed class ExerciseCalibrationFrame
+    {
+        public string action;
+        public bool active;
+        public string outcome;
+        public int step;
+        public int total;
+        public string instruction;
+        public bool preparing;
+        public int remaining;
+        public string[] results;
+    }
 
     private void Awake()
     {
@@ -626,6 +647,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
                 recordingFile = frame.recordingFile ?? "";
                 recordingSeconds = frame.recordingSeconds;
                 controlMessage = frame.controlMessage ?? "";
+                LatestExerciseCalibration = frame.exerciseCalibration;
                 status = "Receiving MobilePose";
             }
         }
@@ -654,6 +676,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         public string recordingFile;
         public float recordingSeconds;
         public string controlMessage;
+        public ExerciseCalibrationFrame exerciseCalibration;
     }
 
     private sealed class PoseSample

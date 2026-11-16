@@ -60,7 +60,9 @@ from production.layout import LayoutMismatchError, ResolvedLayout, detect_layout
 from production.rotmat import batch_smpl_matrix_to_unity_quat_xyzw, quat_xyzw_to_unity_quat_xyzw
 from production.solarxr_client import TrackerSample, request_reset, stream_trackers
 from production.pose_calibration import PoseCalibrator
-from production.arm_prior import straighten_reaching_arms
+from production.frame_chain import LegChain, postprocess_output, prepare_frame, push_frame, rebuild_feature
+from production.bridge_contact import bridge_calibration_state, load_bridge_calibration
+from production.layout import BODY_PART_TO_LABEL
 from production.stream_out import PoseBroadcaster
 from production.web_visualizer import start_web_visualizer
 from production.recording import RealtimeRecorder
@@ -130,8 +132,7 @@ def _interpolate_snapshot(history, target_time, keys, acceleration_source):
 
 
 class CompareJobs:
-    """Build the all-model comparison viewer of each saved recording in a low-priority background
-    process, one at a time, so the next game's live inference is not slowed down."""
+    """Build a standalone SMPL surface replay for each saved recording in the background."""
 
     def __init__(self) -> None:
         self._jobs: queue.Queue = queue.Queue()
@@ -145,21 +146,19 @@ class CompareJobs:
         flags = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
         while True:
             recording = self._jobs.get()
-            log = recording.with_name(recording.stem + "_compare.log")
+            log = recording.with_name(recording.stem + "_smpl.log")
             try:
                 with log.open("w", encoding="utf-8") as output:
                     code = subprocess.call(
-                        [sys.executable, "-m", "production.offline_compare", str(recording),
-                         "--torch-threads", "6"],
+                        [sys.executable, "-m", "production.mesh_replay", str(recording)],
                         stdout=output, stderr=subprocess.STDOUT, cwd=str(paths.root_dir), creationflags=flags)
-                viewer = recording.with_name(recording.stem + "_compare.html")
+                viewer = recording.with_name(recording.stem + "_smpl.html")
                 if code == 0 and viewer.exists():
-                    print(f"All-model comparison ready: {viewer}  (index: {viewer.with_name('index.html')})",
-                          file=sys.stderr)
+                    print(f"SMPL surface replay ready: {viewer}", file=sys.stderr)
                 else:
-                    print(f"All-model comparison failed for {recording.name} (see {log})", file=sys.stderr)
+                    print(f"SMPL surface replay failed for {recording.name} (see {log})", file=sys.stderr)
             except OSError as exc:
-                print(f"All-model comparison could not start: {exc}", file=sys.stderr)
+                print(f"SMPL surface replay could not start: {exc}", file=sys.stderr)
 
 
 class FrameClock:
@@ -366,6 +365,18 @@ def _resolve_acceleration_source(requested: str, latest, resolved) -> str:
     return "server" if requested == "server" or (requested == "auto" and available) else "python"
 
 
+def _binding_changed(latest, resolved: ResolvedLayout):
+    """Description of the first model slot whose tracker is no longer bound to that body part, else None."""
+    for label in resolved.labels:
+        sample = latest.get(resolved.label_to_tracker_key[label])
+        if sample is None or sample.body_part is None:
+            continue
+        bound = BODY_PART_TO_LABEL.get(sample.body_part)
+        if bound != label:
+            return f"{label} slot <- tracker {sample.tracker_key} now bound to {bound or sample.body_part}"
+    return None
+
+
 def _sample_acceleration(sample: TrackerSample, source: str):
     if source == "server":
         if sample.reference_adjusted_accel_xyz is None:
@@ -490,10 +501,15 @@ async def main_async(args: argparse.Namespace) -> None:
     control_message = ""
     # Per-set mounting correction from the coach's start pose, and sensed-bone anchoring of the output.
     calibrator = PoseCalibrator(resolved.labels)
+    # Dead-bug thighs from shank translation (deadbug_legs.py) + the acceleration-frame fix (accel_frame.py).
+    leg_chain = LegChain(resolved.labels, args.deadbug_legs)
+    from production.exercise_calibration import ExerciseCalibration
+    exercise_calibration = ExerciseCalibration(calibrator)
     compare_jobs = None if args.no_auto_compare else CompareJobs()
     calibrator.calibration_enabled = not args.no_pose_calibration
     calibrator.anchor_enabled = args.anchor_sensed
     arm_prior_enabled = not args.no_arm_prior   # Unity turns it off for the side bridge (setPoseOptions)
+    exercise_arm_prior_backup = None
     # Frames to collect before inferring after an input-source switch, or at startup without an upright prime.
     warmup_frames = 0 if upright_reference is not None else SOURCE_SWITCH_WARMUP_FRAMES
 
@@ -501,7 +517,8 @@ async def main_async(args: argparse.Namespace) -> None:
         return {"headings": calibrator.headings.tolist(),
                 "corrections": calibrator.corrections.tolist(),
                 "calibrationEnabled": calibrator.calibration_enabled,
-                "anchorEnabled": calibrator.anchor_enabled, "armPriorEnabled": arm_prior_enabled}
+                "anchorEnabled": calibrator.anchor_enabled, "armPriorEnabled": arm_prior_enabled,
+                **bridge_calibration_state(calibrator)}
 
     def rebuild_session(prime):
         if selected_model in WAIST_MODEL_FILES:
@@ -529,7 +546,15 @@ async def main_async(args: argparse.Namespace) -> None:
     async def apply_control(control):
         nonlocal session, input_recorder, calibration_auto_recording, calibration_recording_end_pending
         nonlocal control_message, warmup_frames, arm_prior_enabled
+        nonlocal exercise_arm_prior_backup
         name = control.get("command")
+        if exercise_calibration.active and name in (
+                "poseCalibrate", "standCalibrate", "armsForwardCalibrate", "birdDogStartCalibrate",
+                "birdDogBaseCalibrate", "birdDogLeftReachCalibrate", "birdDogRightReachCalibrate",
+                "poseHoldCalibrate", "yawReset", "startReplay", "stopReplay", "calibrationSessionEnd"):
+            raise RuntimeError("动作校准进行中，请先取消当前校准")
+        if exercise_calibration.active and name == "setPoseOptions" and "calibration" in control:
+            raise RuntimeError("请先完成或取消动作校准，再切换校准开关")
         if name == "coachPose":     # 30 Hz while recording; stored, never logged
             if input_recorder is not None and isinstance(control.get("q"), list):
                 input_recorder.write_coach(control["q"])
@@ -538,6 +563,7 @@ async def main_async(args: argparse.Namespace) -> None:
             if tracker_stream.replaying:
                 raise RuntimeError("cannot record while replaying; return to live input first")
             if input_recorder is None:
+                leg_chain.reset("startRecording")
                 input_recorder = InputRecorder(
                     resolved.name, resolved.labels, resolved.label_to_tracker_key,
                     acceleration_source, live_upright, MODEL_FPS,
@@ -551,6 +577,7 @@ async def main_async(args: argparse.Namespace) -> None:
         elif name == "calibrationSessionStart":
             if tracker_stream.replaying:
                 raise RuntimeError("cannot record calibration while replaying; return to live input first")
+            leg_chain.reset("calibrationSessionStart")
             if input_recorder is None:
                 input_recorder = InputRecorder(
                     resolved.name, resolved.labels, resolved.label_to_tracker_key,
@@ -579,16 +606,49 @@ async def main_async(args: argparse.Namespace) -> None:
                 input_recorder = None
                 calibration_auto_recording = False
                 calibration_recording_end_pending = False
+        elif name == "exerciseCalibrationStart":
+            if tracker_stream.replaying:
+                raise RuntimeError("请先返回实时输入再校准")
+            if calibration_recording_end_pending:
+                finish_calibration_recording()
+            prior_before_start = arm_prior_enabled
+            leg_chain.reset("exerciseCalibrationStart")
+            exercise_calibration.start(control.get("action"))
+            if exercise_arm_prior_backup is None:
+                exercise_arm_prior_backup = prior_before_start
+            arm_prior_enabled = not args.no_arm_prior and not control.get("action", "").startswith("sidebridge")
+            try:
+                await apply_control({"command": "calibrationSessionStart"})
+            except Exception:
+                exercise_calibration.cancel()
+                arm_prior_enabled, exercise_arm_prior_backup = exercise_arm_prior_backup, None
+                raise
+            input_recorder.write_event(name, action=control["action"],
+                                       initialHeadings=exercise_calibration.backup[0].tolist(),
+                                       initialCorrections=exercise_calibration.backup[1].tolist())
+            input_recorder.write_event("setPoseOptions", armPrior=arm_prior_enabled)
+            control_message = "按网页姿势提示完成校准；切换动作会取消本次校准"
+        elif name == "exerciseCalibrationCancel":
+            exercise_calibration.cancel()
+            if exercise_arm_prior_backup is not None:
+                arm_prior_enabled, exercise_arm_prior_backup = exercise_arm_prior_backup, None
+            if input_recorder is not None:
+                input_recorder.write_event(name)
+            await apply_control({"command": "calibrationSessionEnd"})
+            control_message = "校准已取消，已恢复上一次校准结果"
         elif name == "poseCalibrate":
+            leg_chain.reset(name)
             calibrator.request(control.get("targets") or {})
             if input_recorder is not None:
                 input_recorder.write_event("poseCalibrate", targets=control.get("targets"))
             control_message = "pose calibration: hold the start pose"
         elif name == "standCalibrate":
+            leg_chain.reset(name)
             calibrator.request_stand()
             if input_recorder is not None:
                 input_recorder.write_event("standCalibrate")
         elif name == "armsForwardCalibrate":
+            leg_chain.reset(name)
             calibrator.request_arms_forward()
             if input_recorder is not None:
                 input_recorder.write_event("armsForwardCalibrate")
@@ -609,6 +669,7 @@ async def main_async(args: argparse.Namespace) -> None:
             if input_recorder is not None:
                 input_recorder.write_event(name)
         elif name == "poseHoldCalibrate":
+            leg_chain.reset(name)
             calibrator.request_pose_hold(control.get("pose"), control.get("seconds"))
             if input_recorder is not None:
                 input_recorder.write_event(name, pose=control.get("pose"), seconds=control.get("seconds"))
@@ -626,6 +687,7 @@ async def main_async(args: argparse.Namespace) -> None:
             if tracker_stream.replaying:
                 return False    # recorded input already carries its own reset state
             await asyncio.wait_for(request_reset(), timeout=3)
+            leg_chain.reset(name)
             control_message = "SlimeVR yaw reset"
         elif name == "startReplay":
             if input_recorder is not None:
@@ -639,6 +701,7 @@ async def main_async(args: argparse.Namespace) -> None:
                     f"{recording.path.name} was recorded with {recording.layout}, current layout is {resolved.name}")
             tracker_stream.start_replay(recording, resolved.label_to_tracker_key)
             calibrator.reset()
+            leg_chain.reset("startReplay")
             latest.clear()
             recent_observations.clear()
             session = await asyncio.to_thread(rebuild_session, recording.upright)
@@ -648,6 +711,7 @@ async def main_async(args: argparse.Namespace) -> None:
             if tracker_stream.replaying:
                 tracker_stream.stop_replay()
                 calibrator.reset()
+                leg_chain.reset("stopReplay")
                 latest.clear()
                 recent_observations.clear()
                 session = await asyncio.to_thread(rebuild_session, live_upright)
@@ -677,6 +741,7 @@ async def main_async(args: argparse.Namespace) -> None:
     tracker_last_seen = {}
     next_sample_time = None
     keys = [resolved.label_to_tracker_key[label] for label in resolved.labels]
+    binding_problem = last_binding_message = None
     if startup_replay is not None:
         # Layout probing consumes a sample and loading may take seconds. Start
         # the inference replay at its first recorded model frame after setup.
@@ -713,6 +778,10 @@ async def main_async(args: argparse.Namespace) -> None:
                     timeline.append((received_at, latest[key]))
                     del timeline[:-32]
             source_update_index += 1
+            if not tracker_stream.replaying:
+                rebound = _binding_changed(latest, resolved)
+                if rebound is not None:
+                    binding_problem = rebound
             if recorder is not None:
                 recorder.write("solarxrUpdate", {
                     "sourceUpdate": source_update_index,
@@ -735,6 +804,45 @@ async def main_async(args: argparse.Namespace) -> None:
                     ))
             except KeyError:
                 continue  # a required tracker dropped out; wait for it to come back
+        if binding_problem is not None:
+            # SlimeVR re-assigned trackers (server restart / reconnect renumbers devices): the startup
+            # label -> tracker key map would feed the wrong body part into a model slot.  Re-resolve
+            # from the live body parts and drop every piece of history built from the old routing.
+            try:
+                new_layout = detect_layout(latest)
+            except LayoutMismatchError as exc:
+                if binding_problem != last_binding_message:
+                    print(f"Tracker binding changed; inference paused: {binding_problem} ({exc})", file=sys.stderr)
+                    last_binding_message = binding_problem
+                    if input_recorder is not None:
+                        input_recorder.write_event("trackerBindingChanged", problem=binding_problem, resolved=False)
+                binding_problem = None
+                continue
+            if new_layout.name != resolved.name:
+                if binding_problem != last_binding_message:
+                    print(f"Tracker binding changed to layout {new_layout.name}; restart Python", file=sys.stderr)
+                    last_binding_message = binding_problem
+                binding_problem = None
+                continue
+            print(f"Tracker binding changed ({binding_problem}); re-resolved {new_layout.label_to_tracker_key}",
+                  file=sys.stderr)
+            if input_recorder is not None:
+                input_recorder.write_event("trackerBindingChanged", problem=binding_problem, resolved=True,
+                                           labelToTrackerKey=new_layout.label_to_tracker_key)
+                input_recorder.label_to_key = dict(new_layout.label_to_tracker_key)
+            resolved = new_layout
+            keys = [resolved.label_to_tracker_key[label] for label in resolved.labels]
+            calibrator.reset()
+            leg_chain.reset("trackerBindingChanged")
+            recent_observations.clear()
+            sensor_history.clear()
+            tracker_last_seen.clear()
+            next_sample_time = None
+            session = await asyncio.to_thread(rebuild_session, live_upright)
+            warmup_frames = SOURCE_SWITCH_WARMUP_FRAMES
+            binding_problem = last_binding_message = None
+            control_message = "tracker binding changed: re-resolved, model history reset"
+            continue
         now = time.perf_counter()
         if not tracker_stream.replaying and any(key not in latest or key not in sensor_history or not sensor_history[key]
                or not latest[key].online
@@ -781,28 +889,32 @@ async def main_async(args: argparse.Namespace) -> None:
                 calibrator.calibration_enabled = replay_calibration["calibrationEnabled"]
                 calibrator.anchor_enabled = replay_calibration["anchorEnabled"]
                 arm_prior_enabled = replay_calibration["armPriorEnabled"]
+                load_bridge_calibration(calibrator, replay_calibration)
             if input_recorder is not None:
                 input_recorder.write_tick(samples, 1, calibration_snapshot())
-            feature, calibrated_ori, aligned_accel = session.prepare_feature(quats, accel)
-            gravity_quats = np.stack([samples[key].raw_quat_xyzw for key in keys])
-            gravity_accels = np.stack([
-                samples[key].raw_acceleration_xyz if samples[key].raw_acceleration_xyz is not None
-                else (np.nan, np.nan, np.nan)
-                for key in keys
-            ])
-            calibrator.record_bird_dog_gravity(gravity_quats, gravity_accels)
-            aligned_accel = calibrator.correct_acceleration(aligned_accel)
-            calibrated_ori = apply_input_offsets(selected_model, resolved.labels, calibrator.correct(calibrated_ori))
-            feature = feature.copy()
-            feature[:aligned_accel.numel()] = aligned_accel.reshape(-1).numpy() / 30.0
-            feature[-calibrated_ori.numel():] = calibrated_ori.reshape(-1).numpy()   # orientations follow the 15 accel values
-            recent_observations.append((feature.copy(), calibrated_ori.numpy(), aligned_accel.numpy()))
-            if hasattr(session, "push_observation"):
-                session.push_observation(feature, calibrated_ori, aligned_accel)
-            else:
-                session.push_feature(feature)
+            feature, calibrated_ori, aligned_accel, base_ori = prepare_frame(
+                session, calibrator, selected_model, resolved.labels, quats, accel, samples, keys,
+                leg_chain, args.model_accel_fix)
+            # Keep the calibrated orientation *before* model-specific input offsets, so a model switch
+            # rebuilds the history with the new model's offsets instead of the old model's.
+            recent_observations.append((feature.copy(), base_ori.numpy(), aligned_accel.numpy()))
+            push_frame(session, feature, calibrated_ori, aligned_accel)
         del recent_observations[:-480]
         calibration_message = calibrator.advance(frame_steps)
+        exercise_event = exercise_calibration.advance(frame_steps)
+        if exercise_event is not None:
+            calibration_message = exercise_event["message"]
+            if input_recorder is not None:
+                input_recorder.write_event("exercisePoseCalibrate", **exercise_event)
+            if not exercise_calibration.active:
+                outcome = exercise_calibration.outcome
+                if outcome != "complete" and exercise_arm_prior_backup is not None:
+                    arm_prior_enabled = exercise_arm_prior_backup
+                exercise_arm_prior_backup = None
+                if input_recorder is not None:
+                    input_recorder.write_event("exerciseCalibrationEnd", outcome=outcome)
+                await apply_control({"command": "calibrationSessionEnd"})
+                calibration_message += ("；全部校准完成" if outcome == "complete" else "；校准未通过，已恢复原校准，请重试")
         if calibration_message:
             control_message = calibration_message
             print(calibration_message, file=sys.stderr)
@@ -859,15 +971,14 @@ async def main_async(args: argparse.Namespace) -> None:
                     session = await asyncio.to_thread(
                         make_waist_session, requested_model, resolved, heading, waist_root, loaded
                     )
-                    if recent_observations:
-                        for old_feature, old_ori, old_accel in recent_observations:
-                            if hasattr(session, "push_observation"):
-                                session.push_observation(old_feature, torch.from_numpy(old_ori), torch.from_numpy(old_accel))
-                            else:
-                                session.push_feature(old_feature)
+                    for old_feature, old_base_ori, old_accel in recent_observations:
+                        new_feature, new_ori = rebuild_feature(old_feature, requested_model, resolved.labels,
+                                                               old_base_ori, calibrator)
+                        push_frame(session, new_feature, new_ori, torch.from_numpy(old_accel))
                     if hasattr(session, "finish_replay"):
                         session.finish_replay()
                     selected_model = requested_model
+                    leg_chain.reset(f"model switch -> {selected_model}")
                     selected_lag = model_lag_frames(selected_model)
                     print(f"Unity selected model: {selected_model}", file=sys.stderr)
                 except Exception as exc:
@@ -878,13 +989,10 @@ async def main_async(args: argparse.Namespace) -> None:
         # running the blocking model call in a worker thread.
         output = await asyncio.to_thread(session.infer)
         raw_output_quats = batch_smpl_matrix_to_unity_quat_xyzw(output.detach().numpy())
-        output = calibrator.anchor(output, selected_lag)
-        if arm_prior_enabled:
-            measured = calibrator.measured_frame(selected_lag)
-            forearms = None
-            if measured is not None and "lw" in resolved.labels and "rw" in resolved.labels:
-                forearms = (measured[resolved.labels.index("lw")], measured[resolved.labels.index("rw")])
-            output = straighten_reaching_arms(output, forearms)
+        exercise_calibration.observe_output(output.detach().numpy(), selected_model)
+        output, arm_prior_weights, deadbug_legs = postprocess_output(
+            output, calibrator, selected_lag, resolved.labels, arm_prior_enabled, selected_model, leg_chain,
+            dt=args.infer_every / 60.0)
         inference_end_monotonic = time.perf_counter()
         quats_out = batch_smpl_matrix_to_unity_quat_xyzw(output.detach().numpy())
         tracker_rotations = np.stack([quat_xyzw_to_unity_quat_xyzw(q) for q in quats])
@@ -906,6 +1014,10 @@ async def main_async(args: argparse.Namespace) -> None:
             "modelLagFrames": selected_lag,
             "modelFps": MODEL_FPS,
             "inferEvery": args.infer_every,
+            "armPriorWeights": arm_prior_weights,
+            "deadbugLegs": deadbug_legs,
+            "modelAccelFrameFix": bool(args.model_accel_fix),
+            "labelToTrackerKey": dict(resolved.label_to_tracker_key),
             "footContactEnabled": False,
             "accelerationSource": acceleration_source,
             "inputSource": "replay" if tracker_stream.replaying else "live",
@@ -913,6 +1025,7 @@ async def main_async(args: argparse.Namespace) -> None:
             "recordingFile": input_recorder.path.name if input_recorder is not None else "",
             "recordingSeconds": input_recorder.seconds if input_recorder is not None else 0.0,
             "controlMessage": control_message,
+            "exerciseCalibration": exercise_calibration.status(),
         }
         if input_recorder is not None:
             input_recorder.write_prediction(raw_output_quats, quats_out, diagnostics, calibration_snapshot())
@@ -984,7 +1097,7 @@ def main() -> None:
     parser.add_argument("--record", type=Path, default=None,
                          help="write live SolarXR inputs, exact model features and SMPL outputs as JSONL")
     parser.add_argument("--no-auto-compare", action="store_true",
-                        help="do not build the all-model comparison viewer after each saved recording")
+                        help="do not build the SMPL surface replay after each saved recording")
     parser.add_argument("--no-pose-calibration", action="store_true",
                         help="ignore Unity's per-set coach start-pose mounting calibration")
     parser.add_argument("--anchor-sensed", action="store_true",
@@ -992,6 +1105,12 @@ def main() -> None:
                              "with unobserved thighs it can cross the ankles)")
     parser.add_argument("--no-arm-prior", action="store_true",
                         help="keep the model's upper arm when the forearm reaches forward/overhead (see arm_prior.py)")
+    parser.add_argument("--deadbug-legs", choices=("auto", "on", "off"), default="auto",
+                        help="dead-bug thigh estimate from shank translation (deadbug_legs.py); auto = only for "
+                             "the dead-bug model, off = unconstrained network legs")
+    parser.add_argument("--model-accel-fix", action="store_true",
+                        help="also feed the models the sensor-frame-corrected acceleration (accel_frame.py); "
+                             "off by default so existing model behaviour (bird dog etc.) is unchanged")
     parser.add_argument("--torch-threads", type=int, default=8,
                         help="PyTorch CPU threads; the default 48+ on this machine is slower and competes with Unity")
     parser.add_argument("--feed-interval-ms", type=int, default=16,

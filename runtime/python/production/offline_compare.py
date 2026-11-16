@@ -35,6 +35,9 @@ from production.input_recording import load_input_recording, resolve_recording_p
 from production.layout import ResolvedLayout
 from production.pose_calibration import SMPL_PARENTS, PoseCalibrator
 from production.arm_prior import straighten_reaching_arms
+from production.exercise_calibration import ExerciseCalibration
+from production.rotmat import UNITY_SMPL_BASIS
+from scipy.spatial.transform import Rotation
 
 from production.input_recording import RECORDINGS_DIR
 INFER_EVERY = 2
@@ -58,7 +61,9 @@ def _expand(recording, rows):
     for event in (r for r in rows if r.get("type") == "event"):
         if event["name"] not in ("standCalibrate", "armsForwardCalibrate", "poseCalibrate",
                                   "birdDogBaseCalibrate", "birdDogLeftReachCalibrate",
-                                  "birdDogRightReachCalibrate", "birdDogStartCalibrate", "poseHoldCalibrate"):
+                                  "birdDogRightReachCalibrate", "birdDogStartCalibrate", "poseHoldCalibrate",
+                                  "exerciseCalibrationStart", "exerciseCalibrationCancel",
+                                  "exercisePoseCalibrate", "exerciseCalibrationEnd"):
             continue
         index = int(np.searchsorted(row_times, event["t"]))
         frame = row_starts[min(index, len(row_starts) - 1)]
@@ -70,12 +75,14 @@ def calibrated_orientations(recording, quats, events, enabled=True):
     """Raw bone orientations corrected exactly as the live PoseCalibrator would, plus its messages."""
     calibrator = PoseCalibrator(recording.labels)
     calibrator.calibration_enabled = enabled
-    pending = {frame: event for frame, event in events}
+    exercise = ExerciseCalibration(calibrator)
+    pending = {}
+    for frame, event in events:
+        pending.setdefault(frame, []).append(event)
     out, messages = [], []
     for t, q in enumerate(quats):
         out.append(calibrator.correct(bone_orientation(q, recording.labels)).numpy())
-        event = pending.get(t)
-        if event is not None and enabled:
+        for event in pending.get(t, []) if enabled else []:
             if event["name"] == "standCalibrate":
                 calibrator.request_stand()
             elif event["name"] == "armsForwardCalibrate":
@@ -90,6 +97,21 @@ def calibrated_orientations(recording, quats, events, enabled=True):
                 calibrator.request_bird_dog_reach(left_side=False)
             elif event["name"] == "poseHoldCalibrate":
                 calibrator.request_pose_hold(event["pose"], event.get("seconds"))
+            elif event["name"] == "exerciseCalibrationStart":
+                if not exercise.active and "initialHeadings" in event:
+                    calibrator.headings[:] = event["initialHeadings"]
+                    calibrator.corrections[:] = event["initialCorrections"]
+                exercise.start(event["action"])
+            elif event["name"] == "exerciseCalibrationCancel":
+                exercise.cancel()
+            elif event["name"] == "exercisePoseCalibrate":
+                _, message = exercise.capture(event["pose"], event["seconds"])
+                messages.append((t / 60.0, message))
+            elif event["name"] == "exerciseCalibrationEnd":
+                if event.get("outcome") != "complete":
+                    exercise.cancel()
+                else:
+                    exercise.active, exercise.backup = False, None
             else:
                 calibrator.request(event["targets"])
         message = calibrator.advance(1)
@@ -180,10 +202,41 @@ def joint_positions(body, poses, step):
     return (joints - joints[:, :1]).numpy()
 
 
+def recorded_prediction_poses(rows, n_frames):
+    """Return the exact Unity local rotations saved by run.py, on the 60 Hz input timeline."""
+    predictions = [row for row in rows if row.get("type") == "prediction"
+                   and isinstance(row.get("unityLocalQuaternions"), list)]
+    if not predictions:
+        return None
+    poses, times = [], []
+    for row in predictions:
+        values = np.asarray(row["unityLocalQuaternions"], dtype=np.float64)
+        if values.size != 24 * 4:
+            continue
+        unity = Rotation.from_quat(values.reshape(24, 4)).as_matrix()
+        poses.append(np.asarray([UNITY_SMPL_BASIS @ m @ UNITY_SMPL_BASIS for m in unity]))
+        times.append(float(row.get("t", 0.0)))
+    if not poses:
+        return None
+    # Recorder timestamps are monotonic wall-time, while the viewer timeline is
+    # the uniform 60 Hz input timeline. Nearest-neighbour is exact enough for a
+    # diagnostic view and avoids pretending prediction rows are ground truth.
+    indices = np.clip(np.rint(np.asarray(times) * 60.0).astype(int), 0, n_frames - 1)
+    out = np.tile(np.eye(3, dtype=np.float32), (n_frames, 24, 1, 1))
+    filled = np.zeros(n_frames, dtype=bool)
+    out[indices] = np.asarray(poses, dtype=np.float32)
+    filled[indices] = True
+    for i in range(1, n_frames):
+        if not filled[i]:
+            out[i] = out[i - 1]
+    return out
+
+
 def write_viewer(path: Path, title: str, fps: float, tracks: dict, messages, events, live_model=None):
     data = {
         "title": title, "fps": fps, "parents": SMPL_PARENTS, "liveModel": live_model,
-        "models": [{"id": model_id, "label": WAIST_MODEL_LABELS.get(model_id, model_id),
+        "models": [{"id": model_id, "label": ("录制时实际输出" if model_id == "recorded_output"
+                                       else WAIST_MODEL_LABELS.get(model_id, model_id)),
                     "frames": np.round(positions, 3).reshape(len(positions), -1).tolist()}
                    if model_id != "coach" else
                    {"id": "coach", "label": "教练（参考动作，非真值）",
@@ -200,21 +253,30 @@ def compare_recording(path: Path, models, calibration=True, anchor=False, fps=30
     recording = load_input_recording(path)
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     quats, accels, events = _expand(recording, rows)
+    prior_flags = None
+    if any(event["name"] == "exerciseCalibrationStart" for _, event in events):
+        prior_flags = np.repeat([
+            state.get("armPriorEnabled", arm_prior) if state else arm_prior
+            for state in recording.calibration], recording.ticks)
     ori, _, messages = calibrated_orientations(recording, quats, events, enabled=calibration)
     for t, message in messages:
         print(f"  t={t:5.1f}s {message}", file=sys.stderr)
     body = ParametricModel(paths.smpl_file)
     step = max(1, int(round(60 / fps)))
     tracks = {}
+    recorded = recorded_prediction_poses(rows, len(quats))
+    if recorded is not None:
+        tracks["recorded_output"] = joint_positions(body, recorded, step)
     coach = coach_poses(recording, rows, ori, events, len(quats))
     if coach is not None:
         tracks["coach"] = joint_positions(body, coach, step)
     for model_id in models:
         print(f"running {model_id} ...", file=sys.stderr, flush=True)
         poses = run_model(model_id, recording, quats, accels, ori, anchor=anchor)
-        if arm_prior:      # same post-processing as the live loop; poses[t] represents input frame t
+        if arm_prior:
             lw, rw = recording.labels.index("lw"), recording.labels.index("rw")
             poses = np.stack([straighten_reaching_arms(p, (ori[t, lw], ori[t, rw]))
+                              if (prior_flags[t] if prior_flags is not None else arm_prior) else p
                               for t, p in enumerate(poses)]).astype(np.float32)
         tracks[model_id] = joint_positions(body, poses, step)
     options = (("raw input" if not calibration else "calibrated") + (", anchored" if anchor else "")

@@ -5,6 +5,7 @@ using UnityEngine;
 
 public sealed class MobilePoseCalibrationController : MonoBehaviour
 {
+    public enum CalibrationMode { SceneDefault, BirdDog, DeadBug, SideBridge, HipThrust, Crunch, LyingCat }
     // PoseHold: a known lying-game hold solved in Python (KNOWN_HOLDS in pose_calibration.py, docs/09).
     public enum StepKind { Standing, ArmsForward, StartPose, Prompt, BirdDogBase, BirdDogTransition, BirdDogLeftReach, BirdDogRightReach, PoseHold }
 
@@ -20,6 +21,7 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
 
     [SerializeField] private MobilePoseWebSocketSource mobilePose;
     [SerializeField] private List<Step> steps = new List<Step>();
+    [SerializeField] private CalibrationMode selectedMode = CalibrationMode.SceneDefault;
 
     public bool IsCalibrating { get; private set; }
     public bool IsComplete { get; private set; }
@@ -33,13 +35,82 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     {
         if (mobilePose == null) mobilePose = GetComponent<MobilePoseWebSocketSource>();
         if (steps.Count == 0) steps = CreateDefaultSteps(gameObject.scene.name);
+        if (selectedMode == CalibrationMode.SceneDefault) selectedMode = ModeForScene(gameObject.scene.name);
     }
 
     public void BeginCalibration()
     {
         if (IsCalibrating) return;
+        if (selectedMode != CalibrationMode.SceneDefault && selectedMode != CalibrationMode.BirdDog)
+        {
+            if (mobilePose == null || !mobilePose.IsConnected || mobilePose.IsReplaying)
+            {
+                CurrentInstruction = "Connect Python to live SlimeVR input before starting this calibration.";
+                return;
+            }
+            string action = ExerciseAction(selectedMode);
+            IsComplete = false;
+            IsCalibrating = true;
+            CurrentInstruction = "Starting " + ModeDescription(selectedMode);
+            mobilePose.SendCalibrationCommand("{\"command\":\"exerciseCalibrationStart\",\"action\":\"" + action + "\"}");
+            return;
+        }
+        if (selectedMode == CalibrationMode.BirdDog) steps = CreateDefaultSteps(SceneToken(selectedMode));
         StopAllCoroutines();
         StartCoroutine(RunSteps());
+    }
+
+    private static string ExerciseAction(CalibrationMode mode)
+    {
+        switch (mode)
+        {
+            case CalibrationMode.DeadBug: return "deadbug";
+            case CalibrationMode.SideBridge: return "sidebridge_left";
+            case CalibrationMode.HipThrust: return "hipthrust";
+            case CalibrationMode.Crunch: return "crunch";
+            case CalibrationMode.LyingCat: return "lyingcat";
+            default: return string.Empty;
+        }
+    }
+
+    private static CalibrationMode ModeForScene(string sceneName)
+    {
+        string lower = (sceneName ?? string.Empty).ToLowerInvariant();
+        if (lower.Contains("birddog")) return CalibrationMode.BirdDog;
+        if (lower.Contains("deadbug")) return CalibrationMode.DeadBug;
+        if (lower.Contains("sidebridge")) return CalibrationMode.SideBridge;
+        if (lower.Contains("hipthrust")) return CalibrationMode.HipThrust;
+        if (lower.Contains("crunch")) return CalibrationMode.Crunch;
+        if (lower.Contains("lyingcat") || lower.Contains("cat")) return CalibrationMode.LyingCat;
+        return CalibrationMode.SceneDefault;
+    }
+
+    private static string SceneToken(CalibrationMode mode)
+    {
+        switch (mode)
+        {
+            case CalibrationMode.BirdDog: return "BirdDog";
+            case CalibrationMode.DeadBug: return "DeadBug";
+            case CalibrationMode.SideBridge: return "SideBridge";
+            case CalibrationMode.HipThrust: return "HipThrust";
+            case CalibrationMode.Crunch: return "Crunch";
+            case CalibrationMode.LyingCat: return "LyingCat";
+            default: return string.Empty;
+        }
+    }
+
+    private static string ModeDescription(CalibrationMode mode)
+    {
+        switch (mode)
+        {
+            case CalibrationMode.BirdDog: return "鸟狗：四点跪姿 + 左右对侧伸展；保持原有鸟狗校准流程。";
+            case CalibrationMode.DeadBug: return "死虫：仰卧起始、桌面腿、左右对侧伸展；手和腿按动作姿势校准。";
+            case CalibrationMode.SideBridge: return "侧桥：仰卧基准 + 侧向支撑姿势；校准支撑前臂、腰侧和腿部方向。";
+            case CalibrationMode.HipThrust: return "臀桥：仰卧伸腿基准 + 屈膝臀桥姿势；校准腿部弯曲和躯干方向。";
+            case CalibrationMode.Crunch: return "卷腹：仰卧手臂放置 + 卷腹姿势；校准手臂和躯干屈曲方向。";
+            case CalibrationMode.LyingCat: return "卧位猫：四点跪姿中立位；手和小腿保持固定，建立支点参考，动作时关注腰部上下变化。";
+            default: return "按当前场景的默认校准步骤执行。";
+        }
     }
 
     private IEnumerator RunSteps()
@@ -135,6 +206,24 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
 
     private void Update()
     {
+        if (IsCalibrating && selectedMode != CalibrationMode.BirdDog && mobilePose != null)
+        {
+            MobilePoseWebSocketSource.ExerciseCalibrationFrame state = mobilePose.LatestExerciseCalibration;
+            if (state != null && state.action == ExerciseAction(selectedMode))
+            {
+                RemainingSeconds = state.remaining;
+                CurrentInstruction = "第 " + state.step + " / " + state.total + " 步 · " +
+                    (state.preparing ? "准备，摆好姿势" : "保持不动") + "\n" + state.instruction;
+                if (!state.active && (state.outcome == "complete" || state.outcome == "failed" || state.outcome == "cancelled"))
+                {
+                    IsCalibrating = false;
+                    IsComplete = state.outcome == "complete";
+                    if (state.results != null && state.results.Length > 0)
+                        armCalibrationResult = string.Join("\n", state.results);
+                    resultUntil = Time.unscaledTime + 8f;
+                }
+            }
+        }
         if (mobilePose != null)
         {
             // The straight-arm prior (Python arm_prior.py) is wrong for the side-bridge support arm,
@@ -156,25 +245,83 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             armCalibrationResult = message;
     }
 
+    private GUIStyle panelStyle, countdownStyle, gridStyle, buttonStyle, titleStyle;
+    private float styleScale = -1f;
+
+    /// <summary>Readable from a mat on the floor: sizes follow the screen height (1080p = 1).</summary>
+    private void EnsureStyles()
+    {
+        float scale = Mathf.Max(0.7f, Screen.height / 1080f);
+        if (panelStyle != null && Mathf.Approximately(scale, styleScale)) return;
+        styleScale = scale;
+        var background = new Texture2D(1, 1);
+        background.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.78f));
+        background.Apply();
+        panelStyle = new GUIStyle(GUI.skin.box)
+        {
+            fontSize = Mathf.RoundToInt(40 * scale), wordWrap = true, alignment = TextAnchor.UpperCenter,
+            padding = new RectOffset(24, 24, 18, 18)
+        };
+        panelStyle.normal.background = background;
+        panelStyle.normal.textColor = Color.white;
+        countdownStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = Mathf.RoundToInt(110 * scale), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter
+        };
+        countdownStyle.normal.textColor = new Color(1f, 0.85f, 0.2f);
+        gridStyle = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(30 * scale) };
+        buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(34 * scale), fontStyle = FontStyle.Bold };
+        titleStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(30 * scale), alignment = TextAnchor.MiddleCenter };
+        titleStyle.normal.textColor = Color.white;
+    }
+
     private void OnGUI()
     {
-        float width = Mathf.Min(Screen.width - 40f, 900f);
+        EnsureStyles();
+        float scale = styleScale;
+        float width = Mathf.Min(Screen.width - 40f, 1500f * scale);
+        float left = (Screen.width - width) / 2f;
         string text = string.IsNullOrEmpty(CurrentInstruction)
-            ? "Calibration is separate from the game. Start it when ready."
+            ? "校准与游戏分开进行，准备好后开始。"
             : CurrentInstruction;
-        if (IsCalibrating) text += "\n" + Mathf.CeilToInt(RemainingSeconds) + " s";
         if (!string.IsNullOrEmpty(armCalibrationResult) && Time.unscaledTime < resultUntil)
         {
             text += "\n" + armCalibrationResult;
             if (armCalibrationResult.Contains("CHECK FAILED"))
                 text += "\n姿势与预期不符，校准可能不准，建议完成后点“重新校准”。";
         }
-        GUI.Box(new Rect((Screen.width - width) / 2f, 30f, width, 150f), text);
-        if (!IsCalibrating && !IsComplete && GUI.Button(
-                new Rect((Screen.width - 220f) / 2f, 190f, 220f, 48f),
-                "Start calibration"))
+        float top = 12f * scale;
+        if (!IsCalibrating)
+        {
+            GUI.Label(new Rect(left, top, width, 44f * scale), "选择校准动作", titleStyle);
+            top += 46f * scale;
+            string[] names = { "场景默认", "鸟狗", "死虫", "侧桥", "臀桥", "卷腹", "卧位猫" };
+            int mode = GUI.SelectionGrid(new Rect(left, top, width, 60f * scale), (int)selectedMode, names, names.Length,
+                gridStyle);
+            if (mode != (int)selectedMode)
+            {
+                selectedMode = (CalibrationMode)mode;
+                steps = selectedMode == CalibrationMode.SceneDefault
+                    ? CreateDefaultSteps(gameObject.scene.name)
+                    : CreateDefaultSteps(SceneToken(selectedMode));
+            }
+            top += 72f * scale;
+            text = ModeDescription(selectedMode) + "\n" + text;
+        }
+        float countdownWidth = IsCalibrating ? 220f * scale : 0f;
+        float textWidth = width - countdownWidth;
+        float height = Mathf.Max(panelStyle.CalcHeight(new GUIContent(text), textWidth), 150f * scale);
+        GUI.Box(new Rect(left, top, textWidth, height), text, panelStyle);
+        if (IsCalibrating)
+        {
+            GUI.Box(new Rect(left + textWidth, top, countdownWidth, height), GUIContent.none, panelStyle);
+            GUI.Label(new Rect(left + textWidth, top, countdownWidth, height),
+                Mathf.CeilToInt(RemainingSeconds).ToString(), countdownStyle);
+        }
+        var buttonRect = new Rect((Screen.width - 340f * scale) / 2f, top + height + 14f * scale, 340f * scale, 72f * scale);
+        if (!IsCalibrating && !IsComplete && GUI.Button(buttonRect, "开始校准", buttonStyle))
             BeginCalibration();
-        if (IsComplete && GUI.Button(new Rect((Screen.width - 220f) / 2f, 190f, 220f, 48f), "重新校准"))
+        if (IsComplete && GUI.Button(buttonRect, "重新校准", buttonStyle))
             BeginCalibration();
     }
 

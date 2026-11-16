@@ -134,6 +134,9 @@ class PoseCalibrator:
         self.mode = "heading"
         self.headings = np.tile(np.eye(3), (len(self.labels), 1, 1))      # left (world) yaw corrections
         self.corrections = np.tile(np.eye(3), (len(self.labels), 1, 1))   # right (mounting) corrections
+        # Glute-bridge lie-flat calibration (exercise_calibration.py); used by bridge models only.
+        self.bridge_waist = None    # (3,3) right-multiplied waist correction
+        self.bridge_trunk = None    # {joint: (3,3)} network trunk output bias
         self._raw = deque(maxlen=2 * WINDOW_FRAMES)
         self._history = deque(maxlen=HOLD_HISTORY_FRAMES)
         self._corrected = deque(maxlen=128)
@@ -147,6 +150,8 @@ class PoseCalibrator:
 
     def reset(self) -> None:
         """New input source or wearing: previous corrections no longer apply."""
+        self.bridge_waist = None
+        self.bridge_trunk = None
         self.headings = np.tile(np.eye(3), (len(self.labels), 1, 1))
         self.corrections = np.tile(np.eye(3), (len(self.labels), 1, 1))
         self._raw.clear()

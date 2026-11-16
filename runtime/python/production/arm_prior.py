@@ -54,7 +54,7 @@ def _scaled(rotation: np.ndarray, weight: float) -> np.ndarray:
     return np.eye(3) + np.sin(a) * k + (1 - np.cos(a)) * k @ k
 
 
-def reach_weight(forearm_dir: np.ndarray, trunk: np.ndarray) -> float:
+def reach_weight(forearm_dir: np.ndarray, trunk: np.ndarray, include_chest_reach: bool = False) -> float:
     """1 when the forearm is level and points, in the horizontal plane, along the trunk's reach axis:
     the chest normal when the trunk is upright (arms forward), the spine when it lies flat (the
     bird-dog reach, the dead-bug overhead reach); whichever of the two is closer to horizontal.
@@ -63,16 +63,24 @@ def reach_weight(forearm_dir: np.ndarray, trunk: np.ndarray) -> float:
     # shoulder) on/off in one frame as the arm rose through it (recording 20261112_233633).
     elevation = np.degrees(np.arcsin(np.clip(forearm_dir[1], -1.0, 1.0)))
     level = float(np.clip((LEVEL_NONE_DEG - abs(elevation)) / (LEVEL_NONE_DEG - LEVEL_FULL_DEG), 0.0, 1.0))
-    if level <= 0.0:
-        return 0.0
     chest, spine = trunk @ np.array([0.0, 0.0, 1.0]), trunk @ np.array([0.0, 1.0, 0.0])
-    reach = chest if np.hypot(chest[0], chest[2]) >= np.hypot(spine[0], spine[2]) else spine
-    azimuth = lambda v: np.arctan2(v[0], v[2])
-    angle = abs(np.degrees((azimuth(forearm_dir) - azimuth(reach) + np.pi) % (2 * np.pi) - np.pi))
-    return level * float(np.clip((NONE_DEG - angle) / (NONE_DEG - FULL_DEG), 0.0, 1.0))
+    horizontal_weight = 0.0
+    if level > 0.0:
+        reach = chest if np.hypot(chest[0], chest[2]) >= np.hypot(spine[0], spine[2]) else spine
+        azimuth = lambda v: np.arctan2(v[0], v[2])
+        angle = abs(np.degrees((azimuth(forearm_dir) - azimuth(reach) + np.pi) % (2 * np.pi) - np.pi))
+        horizontal_weight = level * float(np.clip((NONE_DEG - angle) / (NONE_DEG - FULL_DEG), 0.0, 1.0))
+    chest_weight = 0.0
+    if include_chest_reach and abs(chest[1]) >= 0.65:
+        # In dead bug the chest normal points toward the ceiling. Arms straight
+        # up are therefore aligned with it, before they rotate overhead.
+        angle = np.degrees(np.arccos(np.clip(forearm_dir @ chest, -1.0, 1.0)))
+        chest_weight = float(np.clip((35.0 - angle) / 20.0, 0.0, 1.0))
+    return max(horizontal_weight, chest_weight)
 
 
-def straighten_reaching_arms(local, measured_forearms=None, return_weights: bool = False):
+def straighten_reaching_arms(local, measured_forearms=None, return_weights: bool = False,
+                             include_chest_reach: bool = False):
     """(24, 3, 3) local SMPL pose (torch or numpy) -> same type with reaching arms straightened.
     measured_forearms: optional (left, right) measured global forearm rotations (SMPL joints 18/19)."""
     is_torch = isinstance(local, torch.Tensor)
@@ -84,7 +92,7 @@ def straighten_reaching_arms(local, measured_forearms=None, return_weights: bool
         measured = None if measured_forearms is None else np.asarray(measured_forearms[side], np.float64)
         forearm_rot = g[elbow] if measured is None else measured
         forearm = forearm_rot @ axis
-        w = reach_weight(forearm, g[TRUNK])
+        w = reach_weight(forearm, g[TRUNK], include_chest_reach=include_chest_reach)
         weights.append(w)
         if w <= 0.0:
             continue

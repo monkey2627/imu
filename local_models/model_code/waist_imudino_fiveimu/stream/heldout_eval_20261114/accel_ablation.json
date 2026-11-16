@@ -1,0 +1,26 @@
+{
+ "synthetic": {
+  "L_thigh_abs_err_deg": 9.41,
+  "R_thigh_abs_err_deg": 10.07,
+  "L_knee_abs_err_deg": 9.77,
+  "R_knee_abs_err_deg": 10.22,
+  "L_extended_recall": 0.318,
+  "R_extended_recall": 0.851
+ },
+ "accel_zero": {
+  "L_thigh_abs_err_deg": 12.77,
+  "R_thigh_abs_err_deg": 15.07,
+  "L_knee_abs_err_deg": 13.05,
+  "R_knee_abs_err_deg": 15.11,
+  "L_extended_recall": 0.337,
+  "R_extended_recall": 0.84
+ },
+ "accel_negated": {
+  "L_thigh_abs_err_deg": 10.25,
+  "R_thigh_abs_err_deg": 11.54,
+  "L_knee_abs_err_deg": 10.5,
+  "R_knee_abs_err_deg": 11.67,
+  "L_extended_recall": 0.278,
+  "R_extended_recall": 0.713
+ }
+}

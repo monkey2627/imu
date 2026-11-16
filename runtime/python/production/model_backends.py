@@ -52,6 +52,14 @@ WAIST_MODEL_FILES = {
     "waist_imudino_stream_wristankle_limbmix": ("imudino_stream", "waist_imudino_stream_wristankle_limbmix/best.pt"),
     # 2026-11-13: AMASS + DeadBug/DeadBugMix, same wrist/ankle streaming contract and fresh head.
     "waist_imudino_stream_deadbug_limbmix": ("imudino_stream", "waist_imudino_stream_deadbug_limbmix/best.pt"),
+    # 2026-11-15: AMASS + RehabV5 simulated DeadBug (3,192 clips), same contract; no DuoMo video data.
+    "waist_imudino_stream_deadbug_rehabv5": ("imudino_stream", "waist_imudino_stream_deadbug_rehabv5/best.pt"),
+    # 2026-11-15: AMASS + RehabV5 simulated Bridge (3,178 clips), same contract.
+    "waist_imudino_stream_bridge_rehabv5": ("imudino_stream", "waist_imudino_stream_bridge_rehabv5/best.pt"),
+    # 2026-11-16: AMASS + clean DuoMo DeadBug/Mix (50% of dead-bug samples) + DeadBugSim (20%) + RehabV5Ext (30%).
+    "waist_imudino_stream_deadbug_simreal": ("imudino_stream", "waist_imudino_stream_deadbug_simreal/best.pt"),
+    # 2026-11-16: AMASS + CurlUp exercise fine-tune.
+    "waist_imudino_stream_curlup": ("imudino_stream", "waist_imudino_stream_curlup/best.pt"),
 }
 WAIST_MODEL_LABELS = {
     "waist_mobileposer_amass": "MobilePose / AMASS",
@@ -74,6 +82,10 @@ WAIST_MODEL_LABELS = {
     "waist_imudino_stream_wristankle": "IMUDINO Stream / wrist+ankle",
     "waist_imudino_stream_wristankle_limbmix": "IMUDINO Stream / wrist+ankle limb-mix",
     "waist_imudino_stream_deadbug_limbmix": "IMUDINO Stream / deadbug limb-mix",
+    "waist_imudino_stream_deadbug_rehabv5": "IMUDINO Stream / deadbug RehabV5 sim",
+    "waist_imudino_stream_bridge_rehabv5": "IMUDINO Stream / bridge RehabV5 sim",
+    "waist_imudino_stream_deadbug_simreal": "IMUDINO Stream / deadbug sim+real",
+    "waist_imudino_stream_curlup": "IMUDINO Stream / CurlUp",
 }
 WAIST_CHECKPOINT_ROOT = paths.waist_checkpoint
 
