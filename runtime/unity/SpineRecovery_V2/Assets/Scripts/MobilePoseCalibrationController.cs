@@ -22,6 +22,10 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     [SerializeField] private MobilePoseWebSocketSource mobilePose;
     [SerializeField] private List<Step> steps = new List<Step>();
     [SerializeField] private CalibrationMode selectedMode = CalibrationMode.SceneDefault;
+    [Tooltip("Start the scene's action calibration as soon as Unity connects to Python.")]
+    [SerializeField] private bool autoBeginOnConnection = true;
+    [Tooltip("Optional action-specific start pose ID. Empty uses the action's default pose.")]
+    [SerializeField] private string startPoseId = "";
 
     public bool IsCalibrating { get; private set; }
     public bool IsComplete { get; private set; }
@@ -30,6 +34,7 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     private string armCalibrationResult;
     private float resultUntil;
     private bool armPriorSent;
+    private bool autoBeginSent;
 
     private void Awake()
     {
@@ -52,7 +57,12 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             IsComplete = false;
             IsCalibrating = true;
             CurrentInstruction = "Starting " + ModeDescription(selectedMode);
-            mobilePose.SendCalibrationCommand("{\"command\":\"exerciseCalibrationStart\",\"action\":\"" + action + "\"}");
+            string requestedStartPose = string.IsNullOrWhiteSpace(startPoseId)
+                ? DefaultStartPose(selectedMode)
+                : startPoseId.Trim();
+            mobilePose.SendCalibrationCommand(
+                "{\"command\":\"exerciseCalibrationStart\",\"action\":\"" + action +
+                "\",\"startPose\":\"" + EscapeJson(requestedStartPose) + "\"}");
             return;
         }
         if (selectedMode == CalibrationMode.BirdDog) steps = CreateDefaultSteps(SceneToken(selectedMode));
@@ -71,6 +81,24 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             case CalibrationMode.LyingCat: return "lyingcat";
             default: return string.Empty;
         }
+    }
+
+    private static string DefaultStartPose(CalibrationMode mode)
+    {
+        switch (mode)
+        {
+            case CalibrationMode.DeadBug: return "tabletop";
+            case CalibrationMode.SideBridge: return "side_rest";
+            case CalibrationMode.HipThrust: return "supine";
+            case CalibrationMode.Crunch: return "supine";
+            case CalibrationMode.LyingCat: return "quadruped";
+            default: return string.Empty;
+        }
+    }
+
+    private static string EscapeJson(string value)
+    {
+        return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private static CalibrationMode ModeForScene(string sceneName)
@@ -101,6 +129,13 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
 
     private static string ModeDescription(CalibrationMode mode)
     {
+        // Keep the on-screen summary aligned with the one-step action-start flow.
+        if (mode == CalibrationMode.BirdDog) return "鸟狗式：只保持四点跪姿起始位置。";
+        if (mode == CalibrationMode.DeadBug) return "死虫：只保持桌面式起始位置。";
+        if (mode == CalibrationMode.SideBridge) return "侧桥：只保持对应侧卧起始位置。";
+        if (mode == CalibrationMode.HipThrust) return "臀桥：只保持屈膝仰卧起始位置。";
+        if (mode == CalibrationMode.Crunch) return "卷腹：只保持仰卧起始位置。";
+        if (mode == CalibrationMode.LyingCat) return "卧位猫：只保持四点跪姿起始位置。";
         switch (mode)
         {
             case CalibrationMode.BirdDog: return "鸟狗：四点跪姿 + 左右对侧伸展；保持原有鸟狗校准流程。";
@@ -206,6 +241,12 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
 
     private void Update()
     {
+        if (autoBeginOnConnection && !autoBeginSent && !IsCalibrating && !IsComplete &&
+            selectedMode != CalibrationMode.SceneDefault && mobilePose != null && mobilePose.IsConnected)
+        {
+            autoBeginSent = true;
+            BeginCalibration();
+        }
         if (IsCalibrating && selectedMode != CalibrationMode.BirdDog && mobilePose != null)
         {
             MobilePoseWebSocketSource.ExerciseCalibrationFrame state = mobilePose.LatestExerciseCalibration;
@@ -331,6 +372,32 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     private static List<Step> CreateDefaultSteps(string sceneName)
     {
         string lower = (sceneName ?? string.Empty).ToLowerInvariant();
+
+        // Runtime calibration is now a single action-specific start-pose hold.
+        // Keep the legacy multi-step definitions below for old scenes, but make
+        // the current UI present the same simple-start flow as Python.
+        if (lower.Contains("birddog"))
+            return new List<Step> { new Step { kind = StepKind.BirdDogBase,
+                instruction = "保持鸟狗式起始姿势：双手撑地、双膝着地，背部平稳，保持不动。", seconds = 8f } };
+        if (lower.Contains("deadbug"))
+            return new List<Step> { PoseHold("deadbug_tabletop",
+                "保持死虫式起始姿势：仰卧，双臂向上伸直，双腿抬起，大腿垂直、小腿水平，保持不动。", 8f) };
+        if (lower.Contains("hipthrust"))
+            return new List<Step> { PoseHold("hipthrust_start",
+                "保持臀桥起始姿势：仰卧屈膝，双脚踩地，双臂放在身体两侧，保持不动。", 8f) };
+        if (lower.Contains("sidebridge"))
+        {
+            string sidePose = lower.Contains("right") ? "sidebridge_right_start" : "sidebridge_left_start";
+            return new List<Step> { PoseHold(sidePose,
+                "保持侧桥起始姿势：侧卧，前臂支撑，身体保持稳定，保持不动。", 8f) };
+        }
+        if (lower.Contains("crunch"))
+            return new List<Step> { PoseHold("supine_arms_side",
+                "保持卷腹起始姿势：仰卧，双臂自然放置，保持不动。", 8f) };
+        if (lower.Contains("lyingcat") || lower.Contains("cat"))
+            return new List<Step> { PoseHold("cat_neutral",
+                "保持跪姿猫式起始姿势：双手撑地、双膝着地，背部平稳，保持不动。", 8f) };
+
         if (lower.Contains("birddog"))
         {
             return new List<Step>

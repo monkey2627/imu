@@ -70,17 +70,19 @@ _HTML = r'''<!doctype html><meta charset="utf-8"><meta name="viewport" content="
 <header><h1>MotionRecover production viewer</h1><span id="status" class="bad">connecting...</span><span id="recordState"></span></header><main><div class="views"><canvas id="view"></canvas><canvas id="view3d"></canvas><canvas id="meshView"></canvas></div><aside><dl><dt>Frame</dt><dd id="frame">-</dd><dt>Layout</dt><dd id="layout">-</dd><dt>FPS</dt><dd id="fps">-</dd><dt>Inference model</dt><dd><select id="modelSelect">__MODEL_OPTIONS__</select><div id="modelStatus" class="hint">Waiting for model state</div></dd><dt>Model lag</dt><dd id="lag">-</dd><dt>Foot contact</dt><dd id="contact">-</dd><dt>Recorded frames</dt><dd id="recorded">0</dd></dl><button id="front">Front</button> <button id="side">Side</button> <button id="threeD">3D joints</button> <button id="surface">SMPL surface</button><div class="hint">3D views use the same 24 local rotations sent to Unity. Drag to orbit, wheel to zoom.</div><hr><button id="record">Start recording</button> <button id="stop">Stop</button><button id="replay">Replay</button><button id="clear">Clear</button><button id="download">Download JSONL</button></aside></main>
 <script>
 const exerciseCatalog=__EXERCISE_CATALOG__;
-document.querySelector('aside').insertAdjacentHTML('afterbegin', '<section><label for="exerciseSelect">动作校准</label><select id="exerciseSelect"></select><button id="exerciseStart">开始 / 重新校准</button><button id="exerciseCancel">取消校准</button><div id="exerciseInstruction" style="line-height:1.5;white-space:pre-wrap"></div><pre id="exerciseResult" aria-live="polite"></pre><hr></section>');
-const exerciseSelect=document.getElementById('exerciseSelect'),exerciseInstruction=document.getElementById('exerciseInstruction'),exerciseResult=document.getElementById('exerciseResult');
+document.querySelector('aside').insertAdjacentHTML('afterbegin', '<section><label for="exerciseSelect">动作校准</label><select id="exerciseSelect"></select><label for="startPoseSelect">预测起始姿态</label><select id="startPoseSelect"></select><button id="exerciseStart">开始 / 重新校准</button><button id="exerciseCancel">取消校准</button><div id="exerciseInstruction" style="line-height:1.5;white-space:pre-wrap"></div><pre id="exerciseResult" aria-live="polite"></pre><hr></section>');
+const exerciseSelect=document.getElementById('exerciseSelect'),startPoseSelect=document.getElementById('startPoseSelect'),exerciseInstruction=document.getElementById('exerciseInstruction'),exerciseResult=document.getElementById('exerciseResult');
 for(const [id,config] of Object.entries(exerciseCatalog)){let option=document.createElement('option');option.value=id;option.textContent=config.label;exerciseSelect.appendChild(option)}
-function previewExercise(){exerciseInstruction.textContent=exerciseCatalog[exerciseSelect.value].steps.map((s,i)=>(i+1)+'. '+s.instruction).join('\n')}
+function fillStartPoses(){let config=exerciseCatalog[exerciseSelect.value];startPoseSelect.innerHTML='';for(const [id,pose] of Object.entries(config.start_poses)){let option=document.createElement('option');option.value=id;option.textContent=pose.instruction;startPoseSelect.appendChild(option)}startPoseSelect.value=config.default_start_pose}
+function previewExercise(){let config=exerciseCatalog[exerciseSelect.value],steps=[...config.steps],selected=config.start_poses[startPoseSelect.value];if(!steps.length||steps[steps.length-1].pose!==selected.pose)steps.push(selected);exerciseInstruction.textContent=steps.map((s,i)=>(i+1)+'. '+s.instruction).join('\n')}
 function exerciseCommand(command){if(!poseSocket||poseSocket.readyState!==WebSocket.OPEN){exerciseResult.textContent='尚未连接 Python 实时输入';return false}poseSocket.send(JSON.stringify(command));return true}
 let exerciseActive=false;
-exerciseSelect.onchange=()=>{if(exerciseActive)exerciseCommand({command:'exerciseCalibrationCancel'});previewExercise()};
-document.getElementById('exerciseStart').onclick=()=>{stopReplay();exerciseCommand({command:'exerciseCalibrationStart',action:exerciseSelect.value})};
+exerciseSelect.onchange=()=>{if(exerciseActive)exerciseCommand({command:'exerciseCalibrationCancel'});fillStartPoses();previewExercise()};
+startPoseSelect.onchange=()=>{if(exerciseActive)exerciseCommand({command:'exerciseCalibrationCancel'});previewExercise()};
+document.getElementById('exerciseStart').onclick=()=>{stopReplay();exerciseCommand({command:'exerciseCalibrationStart',action:exerciseSelect.value,startPose:startPoseSelect.value})};
 document.getElementById('exerciseCancel').onclick=()=>exerciseCommand({command:'exerciseCalibrationCancel'});
 function syncExercise(m){let state=m.exerciseCalibration;if(!state)return;exerciseActive=state.active;document.getElementById('exerciseCancel').disabled=!state.active;document.getElementById('exerciseStart').disabled=m.inputSource==='replay';if(state.active){exerciseInstruction.textContent=exerciseCatalog[state.action].label+' · '+state.step+'/'+state.total+' · '+(state.preparing?'准备姿势':'保持姿势')+' · '+state.remaining+' 秒\n'+state.instruction}const outcomes={complete:'校准完成。',failed:'校准未通过，已恢复原校准。请按提示重新校准。',cancelled:'已取消，已恢复原校准。'};exerciseResult.textContent=[outcomes[state.outcome]||'',...(state.results||[]),m.controlMessage||''].filter(Boolean).join('\n')}
-previewExercise();
+fillStartPoses();previewExercise();
 const c=document.getElementById('view'),x=c.getContext('2d'),c3=document.getElementById('view3d'),x3=c3.getContext('2d'),cm=document.getElementById('meshView'),gl=cm.getContext('webgl',{antialias:true}),statusEl=document.getElementById('status'),fpsEl=document.getElementById('fps'),modelSelect=document.getElementById('modelSelect'),modelStatus=document.getElementById('modelStatus');let mode='front',last=0,n=0,frame=null,posePoints=null,comparisonPoints=null,yaw=-.45,pitch=.12,zoom=1,drag=null,mesh=null,poseSocket=null,activeModel=null,pendingModel=null,pendingModelTimer=null;const par=[-1,0,0,0,1,2,3,4,5,6,7,8,9,9,9,12,13,14,16,17,18,19,20,21],off=[[0,0,0],[-.18,-.08,0],[.18,-.08,0],[0,.22,0],[0,-.42,0],[0,-.42,0],[0,.24,0],[0,-.42,0],[0,-.42,0],[0,.22,0],[0,-.13,.08],[0,-.13,.08],[0,.20,0],[-.12,.12,0],[.12,.12,0],[0,.25,0],[-.2,0,0],[.2,0,0],[-.3,0,0],[.3,0,0],[-.24,0,0],[.24,0,0],[-.12,0,.03],[.12,0,.03]];
 function qm(a,b){return[a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]}function qr(q,v){let r=qm(qm(q,[...v,0]),[-q[0],-q[1],-q[2],q[3]]);return r.slice(0,3)}
 const BODY_SPAN=2.0;// metres shown across the view; pelvis-centred, constant so the camera never refits per frame
@@ -109,7 +111,12 @@ def _render_html(websocket_port: int, model_options):
         for model_id, label in model_options
     )
     return (_HTML.replace("__WS_PORT__", str(websocket_port)).replace("__MODEL_OPTIONS__", options)
-            .replace("__EXERCISE_CATALOG__", json.dumps(EXERCISES, ensure_ascii=True)))
+            .replace("__EXERCISE_CATALOG__", json.dumps(EXERCISES, ensure_ascii=True))
+            .replace("vLight=.35+.65*max(dot(n,normalize(vec3(-.3,.8,.5))),0.0)",
+                     "vLight=.55+.45*abs(dot(n,normalize(vec3(-.3,.8,.5))))")
+            .replace("vec3(.36,.66,.86)*vLight,1.0", "vec3(.42,.70,.88)*vLight,1.0")
+            .replace("gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);",
+                     "gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);"))
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802

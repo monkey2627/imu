@@ -64,10 +64,22 @@ def recorded_labels(rows, n_frames):
     return labels
 
 
-def deadbug_fixed_quaternions(recording, rows, frames, leg_mode="auto", model_id=None):
+def deadbug_fixed_quaternions(recording, rows, frames, leg_mode="auto", model_id=None,
+                              start_pose: str | None = None, start_context_frames: int = 0,
+                              start_offset_frames: int = 0, pure_model: bool = False,
+                              rebase_start_pose: str | None = None,
+                              ignore_recorded_calibration: bool = False,
+                              initial_calibration_only: bool = False):
     """Re-run the recording through the current realtime chain (production.deadbug_replay)."""
     from production.deadbug_replay import per_frame_unity_quaternions, replay
-    result = replay(recording, model_id=model_id, leg_mode=leg_mode)
+    override = None if start_pose is None else ("deadbug", start_pose)
+    result = replay(recording, model_id=model_id, leg_mode=leg_mode,
+                    start_pose_override=override, start_context_frames=start_context_frames,
+                    start_pose_rebase_override=(None if rebase_start_pose is None else
+                                                ("deadbug", rebase_start_pose)),
+                    start_offset_frames=start_offset_frames, pure_model=pure_model,
+                    ignore_recorded_calibration=ignore_recorded_calibration,
+                    initial_calibration_only=initial_calibration_only)
     quats = per_frame_unity_quaternions(result)
     labels = [""] * result.n_frames
     for frame, diag in zip(result.represented_frames, result.diagnostics):
@@ -80,14 +92,23 @@ def deadbug_fixed_quaternions(recording, rows, frames, leg_mode="auto", model_id
 
 
 def write_mesh_replay(recording: Path, output: Path, deadbug_fix: bool = False, baseline: bool = False,
-                      model_id: str | None = None, precomputed=None, title_suffix: str | None = None) -> Path:
+                      pure_model: bool = False,
+                      model_id: str | None = None, precomputed=None, title_suffix: str | None = None,
+                      start_pose: str | None = None, start_context_frames: int = 0,
+                      start_offset_frames: int = 0, rebase_start_pose: str | None = None,
+                      ignore_recorded_calibration: bool = False,
+                      initial_calibration_only: bool = False) -> Path:
     rows = [json.loads(line) for line in recording.read_text(encoding="utf-8").splitlines() if line.strip()]
     ticks = [r for r in rows if r.get("type") == "tick"]
     frames = sum(int(r.get("ticks", 1)) for r in ticks)
     if precomputed is not None:
         q, labels = precomputed
-    elif deadbug_fix or baseline:
-        q, labels = deadbug_fixed_quaternions(recording, rows, frames, "off" if baseline else "auto", model_id)
+    elif deadbug_fix or baseline or pure_model:
+        q, labels = deadbug_fixed_quaternions(recording, rows, frames, "off" if baseline else "auto",
+                                              model_id, start_pose, start_context_frames,
+                                              start_offset_frames, pure_model, rebase_start_pose,
+                                              ignore_recorded_calibration, initial_calibration_only)
+        frames = len(q)
     else:
         q, labels = recorded_unity_quaternions(rows, frames), recorded_labels(rows, frames)
     if q is None:
@@ -105,7 +126,15 @@ def write_mesh_replay(recording: Path, output: Path, deadbug_fix: bool = False, 
     data = {"title": title, "fps": 60, "model": model,
             "frames": np.round(q.reshape(len(q), -1), 5).tolist(),
             "status": status, "statusText": list(table)}
-    output.write_text(_HTML.replace("__DATA__", json.dumps(data, separators=(",", ":"))), encoding="utf-8")
+    html = (_HTML.replace("__DATA__", json.dumps(data, separators=(",", ":")))
+            # Render the SMPL surface as an opaque, double-sided mesh.  Some
+            # exported SMPL triangles have the opposite winding after Unity
+            # coordinate conversion; culling them makes the body look hollow.
+            .replace("g.enable(g.CULL_FACE);", "g.enable(g.DEPTH_TEST);g.disable(g.CULL_FACE);")
+            .replace(".35+.65*max(dot(n,normalize(vec3(-.3,.8,.5))),0.)",
+                     ".55+.45*abs(dot(n,normalize(vec3(-.3,.8,.5))))")
+            .replace("vec3(.36,.66,.86)*L,1.", "vec3(.42,.70,.88)*L,1.0"))
+    output.write_text(html, encoding="utf-8")
     return output
 
 
@@ -127,10 +156,32 @@ if __name__ == "__main__":
                     help="re-run through the current realtime chain instead of showing the recorded output")
     ap.add_argument("--baseline", action="store_true",
                     help="re-run with the dead-bug leg estimate off (unconstrained network legs)")
+    ap.add_argument("--pure-model", action="store_true",
+                    help="disable pose calibration, anchoring and every output prior/constraint")
+    ap.add_argument("--ignore-recorded-calibration", action="store_true",
+                    help="ignore calibration snapshots stored in the recording, while keeping start-pose handling")
+    ap.add_argument("--initial-calibration-only", action="store_true",
+                    help="keep the recording's initial wearing calibration, but ignore later action calibration")
     ap.add_argument("--model", default=None,
                     help="with --deadbug-fix/--baseline: model id to re-run with (default: the recorded model)")
+    ap.add_argument("--start-pose", choices=("tabletop",), default=None,
+                    help="apply an explicit dead-bug start-pose constraint to an older recording")
+    ap.add_argument("--rebase-start-pose", choices=("tabletop",), default=None,
+                    help="persistently transplant model/IMU motion deltas onto this start pose")
+    ap.add_argument("--start-context-frames", type=int, default=0,
+                    help="prime a fresh model from the recording's first N action-pose frames")
+    ap.add_argument("--start-offset-frames", type=int, default=0,
+                    help="start output at this recording frame; context ends immediately before it")
     a = ap.parse_args()
     src = resolve_recording_path(a.recording)
-    suffix = "_baseline.html" if a.baseline else "_deadbug_fix.html" if a.deadbug_fix else "_smpl.html"
+    suffix = ("_pure_model.html" if a.pure_model else "_baseline.html" if a.baseline else
+              "_deadbug_fix.html" if a.deadbug_fix else "_smpl.html")
     dst = a.out or src.with_name(src.stem + suffix)
-    print(write_mesh_replay(src, dst, deadbug_fix=a.deadbug_fix, baseline=a.baseline, model_id=a.model))
+    print(write_mesh_replay(src, dst, deadbug_fix=a.deadbug_fix, baseline=a.baseline,
+                            pure_model=a.pure_model,
+                            model_id=a.model, start_pose=a.start_pose,
+                            start_context_frames=max(0, a.start_context_frames),
+                            start_offset_frames=max(0, a.start_offset_frames),
+                            rebase_start_pose=a.rebase_start_pose,
+                            ignore_recorded_calibration=a.ignore_recorded_calibration,
+                            initial_calibration_only=a.initial_calibration_only))

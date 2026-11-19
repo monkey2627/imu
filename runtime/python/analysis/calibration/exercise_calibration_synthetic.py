@@ -44,6 +44,19 @@ def feed(cal, matrices, frames=60, noisy=False):
 
 
 class CalibrationChecks(unittest.TestCase):
+    def test_each_action_selects_a_final_start_pose_hold(self):
+        for action, config in EXERCISES.items():
+            for start_pose, expected in config["start_poses"].items():
+                with self.subTest(action=action, start_pose=start_pose):
+                    sequence = ExerciseCalibration(PoseCalibrator(LABELS))
+                    sequence.start(action, start_pose)
+                    self.assertEqual(sequence.start_pose, start_pose)
+                    self.assertEqual(sequence.steps[-1]["pose"], expected["pose"])
+                    self.assertEqual(sequence.status()["startPose"], start_pose)
+        sequence = ExerciseCalibration(PoseCalibrator(LABELS))
+        with self.assertRaises(ValueError):
+            sequence.start("deadbug", "not-a-pose")
+
     def test_lyingcat_is_one_fixed_end_neutral_hold(self):
         steps = EXERCISES["lyingcat"]["steps"]
         self.assertEqual([(item["pose"], item["seconds"]) for item in steps], [("cat_neutral", 4)])

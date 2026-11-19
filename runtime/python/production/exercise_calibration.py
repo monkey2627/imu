@@ -26,31 +26,48 @@ ARMS = step("supine_arms", "仰卧屈膝、脚踩地；双臂伸直贴身体两�
 TABLETOP = step("tabletop", "仰卧，大腿竖直、双膝约90度，小腿水平指向脚端；双臂伸直朝天，保持不动。", 10)
 
 EXERCISES = {
-    "deadbug": {"label": "死虫", "steps": [ARMS, TABLETOP,
+    "deadbug": {"label": "死虫", "default_start_pose": "tabletop", "start_poses": {
+        "tabletop": step("tabletop_check", "死虫桌面式起始姿势：双臂朝天，大腿竖直、小腿水平，保持不动。"),
+        "supine": step("supine_check", "死虫仰卧准备姿势：屈膝脚踩地，双臂伸直贴身体两侧，保持不动。"),
+    }, "steps": [ARMS, TABLETOP,
         step("deadbug_left", "左臂沿头顶方向伸直、靠近水平，右腿向脚端伸直；腰背稳定，保持不动。"),
         step("deadbug_right", "先回到桌面式，再换右臂向头顶伸直、左腿向脚端伸直；保持不动。"),
         step("tabletop_check", "回到死虫起始姿势：双臂朝天，大腿竖直、小腿水平，保持不动。")]},
     # Glute bridge: the first hold also levels the waist (lie flat: back, buttocks and head on the floor), the
     # second records the network's trunk output while lying flat (bridge models only, bridge_contact.py).
-    "hipthrust": {"label": "臀桥", "steps": [
+    "hipthrust": {"label": "臀桥", "default_start_pose": "supine", "start_poses": {
+        "supine": step("supine_check", "臀桥落臀起始姿势：屈膝、双脚踩地，背部和臀部贴垫，保持不动。"),
+        "raised": step("bridge_check", "臀桥抬臀起始姿势：保持双脚和肩背支撑，抬髋后保持不动。"),
+    }, "steps": [
         step("supine_straight_flat", "仰卧，背部、臀部和头都平贴垫子；双腿伸直、平行放在垫上；双臂伸直贴身体两侧，"
                                       "手指朝脚、掌心向下。保持不动。", 10),
         step("supine_rest_trunk", "屈膝、双脚踩地与髋同宽；背部、臀部和头继续平贴垫子，手臂平放体侧，保持不动。"),
         step("bridge_check", "缓慢抬臀到臀桥姿势；双臂仍平放地面、手指朝脚，双脚不移动，保持不动。"),
         step("supine_check", "缓慢落臀回到准备姿势，双臂仍贴体侧，保持不动。", 6)]},
-    "sidebridge_left": {"label": "侧桥（左侧支撑）", "steps": [STRAIGHT,
+    "sidebridge_left": {"label": "侧桥（左侧支撑）", "default_start_pose": "side_rest", "start_poses": {
+        "side_rest": step("side_left", "左侧卧准备姿势：左肘在肩下，先不抬髋，保持不动。", 10),
+        "side_raised": step("side_left_check", "左侧桥抬髋起始姿势：左肘支撑并抬髋，保持不动。"),
+    }, "steps": [STRAIGHT,
         step("side_left", "左侧卧，左肘在肩下、左前臂水平朝胸前；右臂伸直沿身体指向脚端。先不抬髋，保持不动。", 10),
         step("side_left_check", "维持左肘支撑，缓慢抬髋；左前臂朝胸前、右臂沿体侧，保持不动。"),
         step("side_legs_check", "落髋后保持侧卧，双腿伸直、双小腿沿身体指向脚端且平行，保持不动。")]},
-    "sidebridge_right": {"label": "侧桥（右侧支撑）", "steps": [STRAIGHT,
+    "sidebridge_right": {"label": "侧桥（右侧支撑）", "default_start_pose": "side_rest", "start_poses": {
+        "side_rest": step("side_right", "右侧卧准备姿势：右肘在肩下，先不抬髋，保持不动。", 10),
+        "side_raised": step("side_right_check", "右侧桥抬髋起始姿势：右肘支撑并抬髋，保持不动。"),
+    }, "steps": [STRAIGHT,
         step("side_right", "右侧卧，右肘在肩下、右前臂水平朝胸前；左臂伸直沿身体指向脚端。先不抬髋，保持不动。", 10),
         step("side_right_check", "维持右肘支撑，缓慢抬髋；右前臂朝胸前、左臂沿体侧，保持不动。"),
         step("side_legs_check", "落髋后保持侧卧，双腿伸直、双小腿沿身体指向脚端且平行，保持不动。")]},
-    "crunch": {"label": "卷腹", "steps": [STRAIGHT,
+    "crunch": {"label": "卷腹", "default_start_pose": "supine", "start_poses": {
+        "supine": step("supine_check", "卷腹仰卧起始姿势：屈膝脚踩地，双臂平放体侧，保持不动。"),
+        "raised": step("crunch_check", "卷腹抬肩起始姿势：小幅抬起肩胛，双臂沿大腿伸出，保持不动。"),
+    }, "steps": [STRAIGHT,
         step("supine_check", "屈膝、脚踩地，双臂伸直平放体侧，先放松躺好，保持不动。"),
         step("crunch_check", "小幅卷腹抬起肩胛，双臂伸直沿大腿朝脚端伸出、尽量平行地面；不拉头，保持不动。"),
         step("supine_check", "缓慢躺回垫上，双臂放回体侧，保持不动。", 6)]},
-    "lyingcat": {"label": "卧位猫（四点跪姿猫式）", "steps": [
+    "lyingcat": {"label": "卧位猫（四点跪姿猫式）", "default_start_pose": "quadruped", "start_poses": {
+        "quadruped": step("cat_neutral", "四点跪姿中立起始姿势：双手在肩下、双膝在髋下，保持不动。", 4),
+    }, "steps": [
         step("cat_neutral", "四点跪姿中立位：双手固定在肩下、双膝固定在髋下，前臂竖直，小腿沿身体向后。背部自然平直，保持不动。", 4)]},
 }
 
@@ -87,8 +104,9 @@ PREPARE_SECONDS = 4
 
 
 class ExerciseCalibration:
-    def __init__(self, calibrator):
+    def __init__(self, calibrator, simple_start_only: bool = False):
         self.calibrator = calibrator
+        self.simple_start_only = bool(simple_start_only)
         self.action = None
         self.index = 0
         self.elapsed = 0
@@ -98,15 +116,21 @@ class ExerciseCalibration:
         self.outcome = "idle"
         self.reference_waist = None
         self.outputs = deque(maxlen=600)      # network outputs (bridge models) during the current hold
+        self.start_pose = None
+        self.steps = []
 
     def observe_output(self, local, model_id):
         """Raw network output (24,3,3) after each inference; kept only for bridge models while calibrating."""
         if self.active and model_id in BRIDGE_MODELS:
             self.outputs.append(np.asarray(local, dtype=np.float64).copy())
 
-    def start(self, action):
+    def start(self, action, start_pose=None):
         if action not in EXERCISES:
             raise ValueError(f"unknown exercise {action!r}")
+        config = EXERCISES[action]
+        start_pose = start_pose or config["default_start_pose"]
+        if start_pose not in config["start_poses"]:
+            raise ValueError(f"unknown start pose {start_pose!r} for exercise {action!r}")
         if not self.calibrator.calibration_enabled:
             raise ValueError("请先开启姿势校准")
         missing = set(BONE_AXES) | {"waist"}
@@ -120,13 +144,24 @@ class ExerciseCalibration:
         self.backup = (cal.headings.copy(), cal.corrections.copy(), cal.bridge_waist, cal.bridge_trunk)
         if action == "hipthrust":     # the lie-flat calibration is re-done from scratch
             cal.bridge_waist, cal.bridge_trunk = None, None
-        # Corrections belong to a wearing and an action. Never fit on top of another action.
-        for label in BONE_AXES:
-            i = cal.labels.index(label)
-            cal.headings[i] = np.eye(3)
-            cal.corrections[i] = np.eye(3)
+        # Dead-bug uses the prescribed tabletop start pose as its action
+        # reference.  Do not reset/refit limb corrections from the user's
+        # later reach poses: those poses are difficult to reproduce exactly
+        # and are not needed by the dedicated dead-bug model.
+        if not self.simple_start_only and action != "deadbug":
+            for label in BONE_AXES:
+                i = cal.labels.index(label)
+                cal.headings[i] = np.eye(3)
+                cal.corrections[i] = np.eye(3)
         cal._history.clear()
-        self.action, self.index, self.elapsed = action, 0, 0
+        self.action, self.start_pose, self.index, self.elapsed = action, start_pose, 0, 0
+        self.steps = ([] if self.simple_start_only or action == "deadbug"
+                      else [dict(item) for item in config["steps"]])
+        selected = dict(config["start_poses"][start_pose])
+        # The chosen pose must be the final stable hold: those observations are
+        # replayed into a fresh model session after calibration succeeds.
+        if not self.steps or self.steps[-1]["pose"] != selected["pose"]:
+            self.steps.append(selected)
         self.active, self.results, self.outcome = True, [], "running"
         self.reference_waist = None
         self.outputs.clear()
@@ -140,11 +175,12 @@ class ExerciseCalibration:
         self.backup = None
 
     def status(self):
-        current = EXERCISES[self.action]["steps"][self.index] if self.action else None
+        current = self.steps[self.index] if self.action and self.steps else None
         preparing = self.active and self.elapsed < PREPARE_SECONDS * 60
         countdown = PREPARE_SECONDS if preparing else (current["seconds"] + PREPARE_SECONDS if current else 0)
         return {"action": self.action, "active": self.active, "outcome": self.outcome,
-                "step": self.index + 1, "total": len(EXERCISES[self.action]["steps"]) if self.action else 0,
+                "startPose": self.start_pose,
+                "step": self.index + 1, "total": len(self.steps) if self.action else 0,
                 "instruction": current["instruction"] if current else "选择动作后开始校准",
                 "preparing": preparing,
                 "remaining": max(0, math.ceil(countdown - self.elapsed / 60)) if self.active else 0,
@@ -155,7 +191,7 @@ class ExerciseCalibration:
         if not self.active:
             return None
         self.elapsed += frames
-        current = EXERCISES[self.action]["steps"][self.index]
+        current = self.steps[self.index]
         if self.elapsed < (PREPARE_SECONDS + current["seconds"]) * 60:
             return None
         # Constrain the search to this hold, excluding the transition/preparation period.
@@ -165,7 +201,7 @@ class ExerciseCalibration:
         if not passed:
             self.cancel()
             self.outcome = "failed"
-        elif self.index + 1 == len(EXERCISES[self.action]["steps"]):
+        elif self.index + 1 == len(self.steps):
             self.active, self.backup, self.outcome = False, None, "complete"
         else:
             self.index += 1
@@ -177,6 +213,10 @@ class ExerciseCalibration:
     def capture(self, pose, seconds):
         """Used by both the live sequence and offline replay. Commit each hold atomically."""
         spec = POSES[pose]
+        if self.simple_start_only:
+            # The start pose is a validity check only; do not refit mounting
+            # corrections from the user's action posture.
+            spec = {label: (target, "check") for label, (target, _op) in spec.items()}
         cal = self.calibrator
         samples = np.asarray(cal._history)[-int(seconds * 60):]
         old = (cal.headings.copy(), cal.corrections.copy(), cal.bridge_waist, cal.bridge_trunk)

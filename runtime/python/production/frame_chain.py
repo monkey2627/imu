@@ -1,4 +1,4 @@
-"""Per-frame and per-output processing shared by the realtime loop (run.py) and the
+﻿"""Per-frame and per-output processing shared by the realtime loop (run.py) and the
 offline replay (deadbug_replay.py), so an offline reproduction runs the same chain.
 
 Per 60 Hz frame (``prepare_frame``)::
@@ -20,11 +20,19 @@ from production.accel_frame import AccelerationFrameFix
 from production.arm_prior import straighten_reaching_arms
 from production.bridge_contact import BRIDGE_MODELS, BridgeContact, apply_trunk_bias
 from production.curlup_contact import CURLUP_MODELS, CurlUpContact
+from production.deadbug_floor import DeadBugFloorContact
 from production.deadbug_legs import DeadBugLegEstimator
+from production.lyingcat_contact import LyingCatContact
+from production.start_pose_constraint import StartPoseConstraint
 from production.model_backends import apply_input_offsets
 
 DEADBUG_MODELS = frozenset({"waist_imudino_stream_deadbug_limbmix", "waist_imudino_stream_deadbug_rehabv5",
+                            "waist_imudino_stream_deadbug_rehabv5_std_20261118",
                             "waist_imudino_stream_deadbug_simreal"})
+# Models whose thighs are re-estimated from shank translation (deadbug_legs.py) in leg mode "auto".
+# The RehabV5-std head predicts the dead-bug legs itself; on the real recordings 045157/063451 the
+# estimator folded its tabletop knees/hips to ~140 deg, so it is excluded (2026-11-19, user choice).
+DEADBUG_LEG_ESTIMATOR_MODELS = DEADBUG_MODELS - {"waist_imudino_stream_deadbug_rehabv5_std_20261118"}
 
 
 class LegChain:
@@ -39,17 +47,26 @@ class LegChain:
         self.estimator = DeadBugLegEstimator(self.labels)
         self.bridge = BridgeContact()
         self.curlup = CurlUpContact()
+        self.lyingcat = LyingCatContact()
+        self.deadbug_floor = DeadBugFloorContact()
+        self.start_pose = StartPoseConstraint(self.labels)
         self._reported = {}
 
     def enabled_for(self, model_id: str) -> bool:
-        return self.mode == "on" or (self.mode == "auto" and model_id in DEADBUG_MODELS)
+        return self.mode == "on" or (self.mode == "auto" and model_id in DEADBUG_LEG_ESTIMATOR_MODELS)
 
     def reset(self, reason: str) -> None:
         self.fix.reset()
         self.estimator.reset(reason)
         self.bridge.reset(reason)
         self.curlup.reset(reason)
+        self.lyingcat.reset(reason)
+        self.deadbug_floor.reset(reason)
+        self.start_pose.clear()
         self._reported = {}
+
+    def activate_start_pose(self, action: str, start_pose: str) -> None:
+        self.start_pose.activate(action, start_pose)
 
     def corrected_server_acceleration(self, samples, keys, fallback) -> np.ndarray:
         """(n,3) server-frame linear acceleration with the sensor-frame fix (accel_frame.py)."""
@@ -133,18 +150,19 @@ def push_frame(session, feature, model_ori, aligned_accel) -> None:
 
 
 def postprocess_output(output, calibrator, lag, labels, arm_prior_enabled, model_id, legs: LegChain | None,
-                       dt: float = 2 / 60):
+                       dt: float = 2 / 60, action_id: str | None = None):
     """raw network output -> anchored -> arm prior -> dead-bug legs / bridge contacts.
     Returns (output, armWeights, legDiag); bridge diagnostics are in legDiag["bridge"]."""
     output = calibrator.anchor(output, lag)
     measured = calibrator.measured_frame(lag)
     arm_weights = [0.0, 0.0]
-    if arm_prior_enabled and model_id not in CURLUP_MODELS:
+    if arm_prior_enabled and model_id not in CURLUP_MODELS and action_id != "lyingcat":
         forearms = None
         if measured is not None and "lw" in labels and "rw" in labels:
             forearms = (measured[labels.index("lw")], measured[labels.index("rw")])
         output, arm_weights = straighten_reaching_arms(
-            output, forearms, return_weights=True, include_chest_reach=(model_id in DEADBUG_MODELS))
+            output, forearms, return_weights=True,
+            include_chest_reach=(model_id in DEADBUG_MODELS or action_id == "deadbug"))
     leg_diag = {"enabled": False}
     if legs is not None and legs.enabled_for(model_id):
         waist = None if measured is None or "waist" not in labels else measured[labels.index("waist")]
@@ -153,6 +171,14 @@ def postprocess_output(output, calibrator, lag, labels, arm_prior_enabled, model
         events = legs.new_events()
         if events:
             leg_diag["events"] = events
+    if legs is not None:
+        output, start_pose_diag = legs.start_pose.apply(
+            output, measured, dt_seconds=dt)
+        leg_diag["startPoseConstraint"] = start_pose_diag
+    if action_id == "deadbug" and legs is not None:
+        local, floor_diag = legs.deadbug_floor.apply(output.detach().numpy().astype(np.float64), dt)
+        output = torch.from_numpy(local).to(output)
+        leg_diag["deadbugFloor"] = floor_diag
     if model_id in BRIDGE_MODELS:
         trunk = calibrator.bridge_trunk if calibrator.calibration_enabled else None
         local = apply_trunk_bias(output.detach().numpy().astype(np.float64), trunk)
@@ -167,4 +193,10 @@ def postprocess_output(output, calibrator, lag, labels, arm_prior_enabled, model
         local, contact = legs.curlup.apply(output.detach().numpy().astype(np.float64), dt)
         output = torch.from_numpy(local).to(output)
         leg_diag["curlup"] = contact
+    if action_id == "lyingcat" and legs is not None:
+        local, contact = legs.lyingcat.apply(output.detach().numpy().astype(np.float64), dt,
+                                             measured=measured, labels=labels)
+        output = torch.from_numpy(local).to(output)
+        leg_diag["lyingcat"] = contact
     return output, arm_weights, leg_diag
+

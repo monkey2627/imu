@@ -845,6 +845,22 @@ class PoseCalibrator:
         """Corrected (n_labels, 3, 3) input of the frame an output lagging `lag_frames` represents."""
         return self._corrected[-1 - lag_frames] if len(self._corrected) > lag_frames else None
 
+    def refresh_corrected_history(self) -> None:
+        """Reapply the committed calibration to the recent raw sensor history.
+
+        Exercise calibration changes headings/corrections atomically.  Lagged
+        output constraints must see the same calibration as the freshly
+        rebuilt model context, rather than a few frames corrected with the old
+        state.
+        """
+        recent = list(self._raw)[-self._corrected.maxlen:]
+        self._corrected.clear()
+        for raw in recent:
+            value = raw
+            if self.calibration_enabled:
+                value = self.headings @ raw @ self.corrections
+            self._corrected.append(np.asarray(value, dtype=np.float64).copy())
+
     def anchor(self, local: torch.Tensor, lag_frames: int) -> torch.Tensor:
         """Replace sensed bones' global orientation in a (24, 3, 3) local pose with the measurement."""
         if not self.anchor_enabled or len(self._corrected) <= lag_frames:

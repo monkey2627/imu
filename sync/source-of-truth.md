@@ -35,6 +35,19 @@ These are different server directories. The Python checkout is not the destinati
 - Do not include Unity/SlimeVR build caches in source manifests; regenerate them with the project's documented toolchain.
 - Local runtime and Unity exports go under `runtime/exports/`; upload them to the server only when they are selected as training inputs.
 
+## Server model registration workflow
+
+When a server training run is approved for realtime use, register it in this workspace in the following order. This is an export-and-register operation, not a mirror of the server training directory.
+
+1. **Identify the authoritative run.** Record the server host, absolute run directory, model/action name, training step, dataset/config version, validation score, and the exact checkpoint file. The training run remains authoritative on the server.
+2. **Stage and verify the artifacts.** Copy the selected `best.pt` (or the explicitly approved checkpoint) into a temporary local staging directory. For IMUDINO models, also copy the required frozen `imudino.pt` backbone. Compute SHA-256 for every copied file and compare it with the server file before promotion.
+3. **Create the local package.** Promote the files to `local_models/checkpoints/<model_id>/`. Add `manifest.json` containing `model_id`, server source path, export date, architecture/contract, sensor order, FPS/lag, training step, validation result, dataset description, file sizes, and SHA-256 values. Do not put these packages under `runtime/python/checkpoints/` unless the model is one of the two legacy PNP models.
+4. **Register the model in production code.** Add the model ID and relative `best.pt` path to `runtime/python/production/model_backends.py`. If it is action-specific, update the corresponding action routing and any model-family sets in `frame_chain.py` or `bridge_contact.py`.
+5. **Register the model in Unity.** Add the same ID and a human-readable label to `runtime/unity/SpineRecovery_V2/Assets/Scripts/MobilePoseWebSocketSource.cs`. The ID must be identical in the manifest, Python registry, and Unity list.
+6. **Validate before use.** Check that `best.pt`, `imudino.pt` (when required), and `manifest.json` exist; recompute SHA-256; inspect the registry path resolution; and run the production model-loading smoke test. Only after these checks should the model become an action default.
+
+The final runtime source of truth is always `E:\dyh\MotionRecover\realuse\MotionRecoverWorkspace`. In particular, `/home/duanyuhan/dyh/motion/realUse/`, `/home/duanyuhan/dyh/motion/realUse/checkpoints/`, and arbitrary server `checkpoints/` directories are **not** local runtime registration destinations. A server archive or monitor output is not considered registered until it has a manifest under `local_models/checkpoints/<model_id>/` and matching Python/Unity registrations in this workspace. Never overwrite an existing model ID; use a new versioned ID and preserve the old package for rollback.
+
 ## Initial assembly record (2026-11-10)
 
 - Runtime Python, runtime checkpoints, SlimeVR source, and Unity source were copied from the local authoritative paths listed above.

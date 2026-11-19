@@ -19,10 +19,13 @@ from production.calibration import identity_heading
 from production.frame_chain import LegChain, postprocess_output, prepare_frame, push_frame
 from production.input_recording import _sample_for, load_input_recording
 from production.layout import ResolvedLayout
-from production.model_backends import make_waist_session, model_lag_frames, resolve_waist_model
+from production.model_backends import (
+    ACTION_RUNTIME_MODELS, make_waist_session, model_lag_frames, resolve_waist_model,
+)
 from production.pose_calibration import PoseCalibrator
 from production.bridge_contact import load_bridge_calibration
 from production.rotmat import batch_smpl_matrix_to_unity_quat_xyzw
+from production.start_pose_rebase import StartPoseRebaser
 
 WARMUP_FRAMES = 12   # run.py SOURCE_SWITCH_WARMUP_FRAMES
 
@@ -46,31 +49,103 @@ class ReplayResult:
 
 
 def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", model_accel_fix: bool = False,
-           infer_every: int | None = None, loaded=None, bridge_override: dict | None = None) -> ReplayResult:
+           infer_every: int | None = None, loaded=None, bridge_override: dict | None = None,
+           start_pose_override: tuple[str, str] | None = None,
+           start_pose_rebase_override: tuple[str, str] | None = None,
+           start_context_frames: int = 0, start_offset_frames: int = 0,
+           pure_model: bool = False, ignore_recorded_calibration: bool = False,
+           initial_calibration_only: bool = False) -> ReplayResult:
     rows = [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
     header = rows[0]
+    action_id = next((r.get("diagnostics", {}).get("exerciseCalibration", {}).get("action")
+                      for r in reversed(rows) if r.get("type") == "prediction"
+                      and r.get("diagnostics", {}).get("exerciseCalibration", {}).get("action")), None)
     recording = load_input_recording(path)
-    model_id = model_id or header.get("model")
+    model_id = model_id or ACTION_RUNTIME_MODELS.get(action_id, header.get("model"))
     infer_every = int(infer_every or header.get("inferEvery") or 2)
     labels = list(recording.labels)
     keys = [recording.label_to_key[label] for label in labels]
     resolved = ResolvedLayout(recording.layout, labels, dict(recording.label_to_key))
     heading = identity_heading(labels)
     session = make_waist_session(model_id, resolved, heading, loaded=loaded or resolve_waist_model(model_id))
-    if recording.upright is not None:
+    if recording.upright is not None and start_context_frames <= 0:
         session.prime(*recording.upright)
     lag = model_lag_frames(model_id)
     calibrator = PoseCalibrator(labels)
     initial = header.get("initialCalibration") or {}
-    calibrator.calibration_enabled = initial.get("calibrationEnabled", True)
-    calibrator.anchor_enabled = initial.get("anchorEnabled", False)
+    if "headings" in initial:
+        calibrator.headings = np.asarray(initial["headings"], dtype=np.float64)
+    if "corrections" in initial:
+        calibrator.corrections = np.asarray(initial["corrections"], dtype=np.float64)
+    calibrator.calibration_enabled = (False if ignore_recorded_calibration
+                                      else initial.get("calibrationEnabled", True))
+    calibrator.anchor_enabled = (False if ignore_recorded_calibration
+                                 else initial.get("anchorEnabled", False))
     arm_prior_enabled = initial.get("armPriorEnabled", True)
-    legs = LegChain(labels, leg_mode)
+    load_bridge_calibration(calibrator, initial)
+    if pure_model:
+        calibrator.calibration_enabled = False
+        calibrator.anchor_enabled = False
+        arm_prior_enabled = False
+    legs = LegChain(labels, "off" if pure_model else leg_mode)
     legs.reset("replay start")
+    if start_pose_override is not None:
+        legs.activate_start_pose(*start_pose_override)
+    rebaser = StartPoseRebaser(labels)
+    if start_pose_rebase_override is not None:
+        rebaser.activate(*start_pose_rebase_override)
 
-    warmup, since_inference, frame_index = WARMUP_FRAMES, 0, 0
+    if start_context_frames > 0:
+        fed = 0
+        source_frame = 0
+        context_end = start_offset_frames if start_offset_frames > 0 else start_context_frames
+        context_begin = max(0, context_end - start_context_frames)
+        for raw_samples, ticks, state in zip(recording.samples, recording.ticks,
+                                             recording.calibration or [None] * len(recording.samples)):
+            samples = {recording.label_to_key[label]: _sample_for(
+                raw_samples[label], recording.label_to_key[label]) for label in labels}
+            quats = np.asarray([samples[key].quat_xyzw for key in keys], dtype=np.float32)
+            accel = np.asarray([samples[key].reference_adjusted_accel_xyz for key in keys], dtype=np.float32)
+            for _ in range(max(1, ticks)):
+                use_frame = context_begin <= source_frame < context_end
+                source_frame += 1
+                if not use_frame:
+                    if source_frame >= context_end:
+                        break
+                    continue
+                if state is not None:
+                    if not initial_calibration_only:
+                        calibrator.headings = np.asarray(state["headings"], dtype=np.float64)
+                        calibrator.corrections = np.asarray(state["corrections"], dtype=np.float64)
+                        calibrator.calibration_enabled = state["calibrationEnabled"]
+                        calibrator.anchor_enabled = state["anchorEnabled"]
+                        arm_prior_enabled = state["armPriorEnabled"]
+                        load_bridge_calibration(calibrator, state)
+                    if ignore_recorded_calibration:
+                        calibrator.calibration_enabled = False
+                        calibrator.anchor_enabled = False
+                    if pure_model:
+                        calibrator.calibration_enabled = False
+                        calibrator.anchor_enabled = False
+                        arm_prior_enabled = False
+                feature, model_ori, aligned_accel, _ = prepare_frame(
+                    session, calibrator, model_id, labels, quats, accel, samples, keys,
+                    legs, model_accel_fix)
+                push_frame(session, feature, model_ori, aligned_accel)
+                calibrator.advance(1)
+                fed += 1
+                if fed >= start_context_frames or source_frame >= context_end:
+                    break
+            if fed >= start_context_frames or source_frame >= context_end:
+                break
+        if hasattr(session, "finish_replay"):
+            session.finish_replay()
+
+    warmup = 0 if start_context_frames > 0 else WARMUP_FRAMES
+    since_inference, frame_index = 0, 0
     calibrated, model_oris = [], []
     input_frames, raw_out, final_out, quats_out, diagnostics = [], [], [], [], []
+    source_frame = 0
     for raw_samples, ticks, state in zip(recording.samples, recording.ticks,
                                          recording.calibration or [None] * len(recording.samples)):
         samples = {recording.label_to_key[label]: _sample_for(raw_samples[label], recording.label_to_key[label])
@@ -78,15 +153,29 @@ def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", mode
         quats = np.asarray([samples[key].quat_xyzw for key in keys], dtype=np.float32)
         accel = np.asarray([samples[key].reference_adjusted_accel_xyz for key in keys], dtype=np.float32)
         for _ in range(max(1, ticks)):
+            if source_frame < start_offset_frames:
+                source_frame += 1
+                continue
+            source_frame += 1
             if state is not None:
-                calibrator.headings = np.asarray(state["headings"], dtype=np.float64)
-                calibrator.corrections = np.asarray(state["corrections"], dtype=np.float64)
-                calibrator.calibration_enabled = state["calibrationEnabled"]
-                calibrator.anchor_enabled = state["anchorEnabled"]
-                arm_prior_enabled = state["armPriorEnabled"]
-                load_bridge_calibration(calibrator, state)
+                if not initial_calibration_only:
+                    calibrator.headings = np.asarray(state["headings"], dtype=np.float64)
+                    calibrator.corrections = np.asarray(state["corrections"], dtype=np.float64)
+                    calibrator.calibration_enabled = state["calibrationEnabled"]
+                    calibrator.anchor_enabled = state["anchorEnabled"]
+                    arm_prior_enabled = state["armPriorEnabled"]
+                    load_bridge_calibration(calibrator, state)
+                legs.start_pose.restore(state.get("startPoseConstraint"))
+                if pure_model:
+                    calibrator.calibration_enabled = False
+                    calibrator.anchor_enabled = False
+                    arm_prior_enabled = False
+                    legs.start_pose.clear()
             if bridge_override is not None:
                 load_bridge_calibration(calibrator, bridge_override)
+                if ignore_recorded_calibration:
+                    calibrator.calibration_enabled = False
+                    calibrator.anchor_enabled = False
             feature, model_ori, aligned_accel, base_ori = prepare_frame(
                 session, calibrator, model_id, labels, quats, accel, samples, keys, legs, model_accel_fix)
             calibrated.append(base_ori.numpy())
@@ -105,7 +194,10 @@ def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", mode
                 output = session.infer()
             raw = output.detach().numpy().astype(np.float32)
             output, arm_weights, leg_diag = postprocess_output(
-                output, calibrator, lag, labels, arm_prior_enabled, model_id, legs, dt=infer_every / 60.0)
+                output, calibrator, lag, labels, arm_prior_enabled, model_id, legs,
+                dt=infer_every / 60.0, action_id=action_id)
+            output, rebase_diag = rebaser.apply(output, calibrator.measured_frame(lag))
+            leg_diag["startPoseRebase"] = rebase_diag
             final = output.detach().numpy().astype(np.float32)
             input_frames.append(frame_index - 1)
             raw_out.append(raw)
@@ -131,6 +223,9 @@ def per_frame_unity_quaternions(result: ReplayResult) -> np.ndarray:
         if 0 <= frame < result.n_frames:
             out[frame] = quats
             filled[frame] = True
+    present = np.flatnonzero(filled)
+    if len(present):
+        out[:present[0]] = out[present[0]]
     for i in range(1, result.n_frames):
         if not filled[i]:
             out[i] = out[i - 1]

@@ -163,6 +163,8 @@ public sealed class VmcGameModeBootstrap : MonoBehaviour
 
     private static void EnsureMobilePoseModules(GameObject root)
     {
+        if (FindObjectOfType<MobilePosePythonLauncher>(true) == null)
+            root.AddComponent<MobilePosePythonLauncher>();
         if (FindObjectOfType<MobilePoseCalibrationController>(true) == null)
             root.AddComponent<MobilePoseCalibrationController>();
         if (FindObjectOfType<MobilePoseSessionRecorder>(true) == null)

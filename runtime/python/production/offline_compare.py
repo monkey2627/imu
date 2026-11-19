@@ -63,7 +63,7 @@ def _expand(recording, rows):
                                   "birdDogBaseCalibrate", "birdDogLeftReachCalibrate",
                                   "birdDogRightReachCalibrate", "birdDogStartCalibrate", "poseHoldCalibrate",
                                   "exerciseCalibrationStart", "exerciseCalibrationCancel",
-                                  "exercisePoseCalibrate", "exerciseCalibrationEnd"):
+                                  "exercisePoseCalibrate", "exerciseCalibrationEnd", "modelContextRebase"):
             continue
         index = int(np.searchsorted(row_times, event["t"]))
         frame = row_starts[min(index, len(row_starts) - 1)]
@@ -101,7 +101,7 @@ def calibrated_orientations(recording, quats, events, enabled=True):
                 if not exercise.active and "initialHeadings" in event:
                     calibrator.headings[:] = event["initialHeadings"]
                     calibrator.corrections[:] = event["initialCorrections"]
-                exercise.start(event["action"])
+                exercise.start(event["action"], event.get("startPose"))
             elif event["name"] == "exerciseCalibrationCancel":
                 exercise.cancel()
             elif event["name"] == "exercisePoseCalibrate":
@@ -112,6 +112,8 @@ def calibrated_orientations(recording, quats, events, enabled=True):
                     exercise.cancel()
                 else:
                     exercise.active, exercise.backup = False, None
+            elif event["name"] == "modelContextRebase":
+                pass  # consumed by run_model; it does not change calibration
             else:
                 calibrator.request(event["targets"])
         message = calibrator.advance(1)
@@ -120,11 +122,14 @@ def calibrated_orientations(recording, quats, events, enabled=True):
     return np.asarray(out, np.float32), calibrator, messages
 
 
-def run_model(model_id, recording, quats, accels, ori, anchor=False):
+def run_model(model_id, recording, quats, accels, ori, events=(), anchor=False):
     """Local SMPL poses (T, 24, 3, 3) indexed by the input frame they represent."""
     resolved = ResolvedLayout(recording.layout, recording.labels, dict(recording.label_to_key))
-    session = make_waist_session(model_id, resolved, identity_heading(recording.labels),
-                                 loaded=resolve_waist_model(model_id))
+    def new_session():
+        return make_waist_session(model_id, resolved, identity_heading(recording.labels),
+                                  loaded=resolve_waist_model(model_id))
+
+    session = new_session()
     if recording.upright is not None:
         session.prime(*recording.upright)
     lag = _lag(model_id)
@@ -132,6 +137,7 @@ def run_model(model_id, recording, quats, accels, ori, anchor=False):
     identity = np.tile(np.eye(3, dtype=np.float32), (24, 1, 1))
     poses = np.repeat(identity[None], len(quats), axis=0)
     last = identity
+    rebases = {frame: event for frame, event in events if event["name"] == "modelContextRebase"}
     for t in range(len(quats)):
         feature, _, accel = session.prepare_feature(quats[t], accels[t])
         feature = feature.copy()
@@ -141,6 +147,31 @@ def run_model(model_id, recording, quats, accels, ori, anchor=False):
             session.push_observation(feature, orientation, accel)
         else:
             session.push_feature(feature)
+        event = rebases.get(t)
+        if event is not None:
+            # Live inference rebuilt a fresh session from the final stable hold.
+            # Reproduce it from raw recorded inputs and the committed calibration.
+            from types import SimpleNamespace
+            from production.pose_context import replay_start_context
+            context_calibrator = SimpleNamespace(
+                calibration_enabled=True,
+                headings=np.asarray(event["headings"], dtype=np.float64),
+                corrections=np.asarray(event["corrections"], dtype=np.float64),
+                bridge_waist=None if event.get("bridgeWaist") is None else np.asarray(event["bridgeWaist"]),
+            )
+            observations = []
+            first = max(0, t - int(event.get("frames", 60)) + 1)
+            for j in range(first, t + 1):
+                raw_ori = bone_orientation(quats[j], recording.labels)
+                raw_accel = torch.from_numpy(accels[j])
+                aligned = (torch.from_numpy(context_calibrator.headings).to(raw_accel)
+                           @ raw_accel.unsqueeze(-1)).squeeze(-1)
+                raw_feature = np.concatenate((aligned.reshape(-1).numpy() / 30.0,
+                                              raw_ori.reshape(-1).numpy())).astype(np.float32)
+                observations.append((raw_feature, raw_ori.numpy(), aligned.numpy()))
+            session = new_session()
+            replay_start_context(session, observations, model_id, recording.labels, context_calibrator,
+                                 frames=len(observations))
         if t >= WARMUP_FRAMES and t % INFER_EVERY == 1:
             last = session.infer().detach().numpy().astype(np.float32)
             if anchor and t - lag >= 0:
@@ -272,7 +303,7 @@ def compare_recording(path: Path, models, calibration=True, anchor=False, fps=30
         tracks["coach"] = joint_positions(body, coach, step)
     for model_id in models:
         print(f"running {model_id} ...", file=sys.stderr, flush=True)
-        poses = run_model(model_id, recording, quats, accels, ori, anchor=anchor)
+        poses = run_model(model_id, recording, quats, accels, ori, events=events, anchor=anchor)
         if arm_prior:
             lw, rw = recording.labels.index("lw"), recording.labels.index("rw")
             poses = np.stack([straighten_reaching_arms(p, (ori[t, lw], ori[t, rw]))

@@ -1,4 +1,4 @@
-"""Adapters for the waist-surface baseline checkpoints.
+﻿"""Adapters for the waist-surface baseline checkpoints.
 
 The three baselines were trained with different output heads.  This module
 keeps those details out of the SolarXR loop and gives it one contract:
@@ -56,11 +56,39 @@ WAIST_MODEL_FILES = {
     "waist_imudino_stream_deadbug_rehabv5": ("imudino_stream", "waist_imudino_stream_deadbug_rehabv5/best.pt"),
     # 2026-11-15: AMASS + RehabV5 simulated Bridge (3,178 clips), same contract.
     "waist_imudino_stream_bridge_rehabv5": ("imudino_stream", "waist_imudino_stream_bridge_rehabv5/best.pt"),
+    "waist_imudino_stream_deadbug_rehabv5_std_20261118": ("imudino_stream", "waist_imudino_stream_deadbug_rehabv5_std_20261118/best.pt"),
+    "waist_imudino_stream_birddog_rehabv5_std_20261118": ("imudino_stream", "waist_imudino_stream_birddog_rehabv5_std_20261118/best.pt"),
+    "waist_imudino_stream_bridge_rehabv5_std_20261118": ("imudino_stream", "waist_imudino_stream_bridge_rehabv5_std_20261118/best.pt"),
+    "waist_imudino_stream_sidebridge_v3_rehabv5_20261118": ("imudino_stream", "waist_imudino_stream_sidebridge_v3_rehabv5_20261118/best.pt"),
     # 2026-11-16: AMASS + clean DuoMo DeadBug/Mix (50% of dead-bug samples) + DeadBugSim (20%) + RehabV5Ext (30%).
     "waist_imudino_stream_deadbug_simreal": ("imudino_stream", "waist_imudino_stream_deadbug_simreal/best.pt"),
     # 2026-11-16: AMASS + CurlUp exercise fine-tune.
     "waist_imudino_stream_curlup": ("imudino_stream", "waist_imudino_stream_curlup/best.pt"),
+    # 2026-11-18: AMASS + LyingCatFlowHMR (video-derived four-point cat), same wrist/ankle contract.
+    "waist_imudino_stream_lyingcat_flowhmr_20261118": ("imudino_stream", "waist_imudino_stream_lyingcat_flowhmr_20261118/best.pt"),
 }
+
+# Fixed production route for the dead-bug exercise.  On the calibrated real
+# recording this checkpoint recognizes the straight-leg phase best (docs/13).
+DEADBUG_RUNTIME_MODEL = "waist_imudino_stream_deadbug_rehabv5_std_20261118"
+
+# Action-level production routing.  Entries without a dedicated checkpoint
+# still have an explicit fallback so an action never inherits the previous
+# scene's model accidentally.
+ACTION_RUNTIME_MODELS = {
+    # birddog_rehabv5_std_20261118 fails to extend the left leg on real recordings
+    # (reach knee 75-87 deg vs 23-36 deg); keep the limb-mix head until that is fixed.
+    "birddog": "waist_imudino_stream_wristankle_limbmix",
+    "deadbug": DEADBUG_RUNTIME_MODEL,
+    "hipthrust": "waist_imudino_stream_bridge_rehabv5_std_20261118",
+    "sidebridge": "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",
+    "crunch": "waist_imudino_stream_curlup",
+    "lyingcat": "waist_imudino_stream_lyingcat_flowhmr_20261118",
+    # Unity sends sidebridge_left / sidebridge_right (never plain "sidebridge").
+    "sidebridge_left": "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",
+    "sidebridge_right": "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",
+}
+
 WAIST_MODEL_LABELS = {
     "waist_mobileposer_amass": "MobilePose / AMASS",
     "waist_mobileposer_deadbug": "MobilePose / Deadbug",
@@ -84,8 +112,13 @@ WAIST_MODEL_LABELS = {
     "waist_imudino_stream_deadbug_limbmix": "IMUDINO Stream / deadbug limb-mix",
     "waist_imudino_stream_deadbug_rehabv5": "IMUDINO Stream / deadbug RehabV5 sim",
     "waist_imudino_stream_bridge_rehabv5": "IMUDINO Stream / bridge RehabV5 sim",
+    "waist_imudino_stream_deadbug_rehabv5_std_20261118": "IMUDINO Stream / DeadBug RehabV5 standardized 2026-11-18",
+    "waist_imudino_stream_birddog_rehabv5_std_20261118": "IMUDINO Stream / BirdDog RehabV5 standardized 2026-11-18",
+    "waist_imudino_stream_bridge_rehabv5_std_20261118": "IMUDINO Stream / Bridge RehabV5 standardized 2026-11-18",
+    "waist_imudino_stream_sidebridge_v3_rehabv5_20261118": "IMUDINO Stream / SideBridge v3 RehabV5 2026-11-18",
     "waist_imudino_stream_deadbug_simreal": "IMUDINO Stream / deadbug sim+real",
     "waist_imudino_stream_curlup": "IMUDINO Stream / CurlUp",
+    "waist_imudino_stream_lyingcat_flowhmr_20261118": "IMUDINO Stream / LyingCat FlowHMR 2026-11-18",
 }
 WAIST_CHECKPOINT_ROOT = paths.waist_checkpoint
 
@@ -378,3 +411,4 @@ def load_mobileposer_checkpoint(checkpoint: Path) -> MobilePose:
             raise ValueError(f"{checkpoint} has no {prefix} weights")
         module.load_state_dict(selected, strict=True)
     return model.eval()
+

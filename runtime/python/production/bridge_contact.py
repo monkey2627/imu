@@ -27,7 +27,9 @@ import numpy as np
 
 from production.arm_prior import PARENTS, _rotation_between, _scaled
 
-BRIDGE_MODELS = frozenset({"waist_imudino_stream_bridge_rehabv5"})
+# Supine glute-bridge models only.  The side-bridge head is NOT listed: a lie-flat waist correction / trunk
+# bias left over from an earlier hip-thrust calibration must not be applied to side lying (2026-11-19).
+BRIDGE_MODELS = frozenset({"waist_imudino_stream_bridge_rehabv5", "waist_imudino_stream_bridge_rehabv5_std_20261118"})
 TRUNK_JOINTS = (3, 6, 9)                  # spine1-3.  Not neck/head: removing their lying bias put the back of
                                           # the head 3-9 cm below the shoulder blades (2026-11-16, 034331).
 TRUNK_BIAS_MAX_SPREAD_DEG = 12.0          # outputs must be steady during the hold
@@ -272,3 +274,4 @@ def load_bridge_calibration(calibrator, state: dict) -> None:
     if "bridgeTrunk" in state:
         trunk = state["bridgeTrunk"]
         calibrator.bridge_trunk = None if trunk is None else {int(k): np.asarray(v, dtype=np.float64) for k, v in trunk.items()}
+

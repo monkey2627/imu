@@ -5,6 +5,7 @@
 新增 `waist_imudino_fiveimu` 的启动方式、双 checkpoint 依赖与根节点处理见 [IMUDINO 接入说明](../docs/IMUDINO_REALUSE.md)。其独立目录包含 `imudino.py`、`downstream/` 与 `model_entry.py`，不套用下述旧模型的 MobilePoser 目录结构。
 
 2026-11-12 起有手腕/脚腕佩戴的流式 IMUDINO 模型；2026-11-13 新增 DeadBug 专用增广权重 `waist_imudino_stream_deadbug_limbmix`。
+2026-11-19 注册卧位猫专用权重 `waist_imudino_stream_lyingcat_flowhmr_20261118`（AMASS + LyingCatFlowHMR），并设为 `lyingcat` 动作默认；见 [docs/16](../docs/16_卧位猫模型注册与接触约束_20261119.md)。
 三个流式模型**没有单独的代码目录**：代码加在同一个 `model_code/waist_imudino_fiveimu/`（`stream_entry.py`、`stream/`）中、与窗口版共用 backbone；
 权重分别放在各自的 `checkpoints/<model_id>/`（各含 `best.pt` + `imudino.pt`）。
 文件布局、训练路径与数据处理见 [IMUDINO_STREAM_WRISTANKLE.md](../docs/IMUDINO_STREAM_WRISTANKLE.md) 第 7.1 节。

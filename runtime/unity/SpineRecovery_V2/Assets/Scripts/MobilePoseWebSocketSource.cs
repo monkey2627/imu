@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
@@ -111,7 +111,12 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "waist_imudino_stream_deadbug_limbmix",
         "waist_imudino_stream_deadbug_rehabv5",
         "waist_imudino_stream_bridge_rehabv5",
-        "waist_imudino_stream_deadbug_simreal"
+        "waist_imudino_stream_deadbug_rehabv5_std_20261118",
+        "waist_imudino_stream_birddog_rehabv5_std_20261118",
+        "waist_imudino_stream_bridge_rehabv5_std_20261118",
+        "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",
+        "waist_imudino_stream_deadbug_simreal",
+        "waist_imudino_stream_lyingcat_flowhmr_20261118"
     };
     private static readonly string[] ModelLabels =
     {
@@ -128,7 +133,12 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         "IMUDINO Stream / deadbug limb-mix",
         "IMUDINO Stream / deadbug RehabV5 sim",
         "IMUDINO Stream / bridge RehabV5 sim",
-        "IMUDINO Stream / deadbug sim+real"
+        "IMUDINO Stream / DeadBug RehabV5 standardized 2026-11-18",
+        "IMUDINO Stream / BirdDog RehabV5 standardized 2026-11-18",
+        "IMUDINO Stream / Bridge RehabV5 standardized 2026-11-18",
+        "IMUDINO Stream / SideBridge v3 RehabV5 2026-11-18",
+        "IMUDINO Stream / deadbug sim+real",
+        "IMUDINO Stream / LyingCat FlowHMR 2026-11-18"
     };
 
     public bool IsConnected { get; private set; }
@@ -207,6 +217,9 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
     public bool IsReplaying => Replaying();
     public bool IsPoseCalibrationEnabled => poseCalibration;
     public bool IsYawResetEnabled => autoYawReset;
+    public string SelectedModelId => selectedModel;
+    public string ServerHost => host;
+    public int ServerPort => port;
     public void SendCalibrationCommand(string json) => SendControl(json);
     public void SendSessionCommand(string json) => SendControl(json);
     public void SendSessionCommands(params string[] json) => SendControls(json);
@@ -287,7 +300,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
             lock (sync) message = controlMessage;
             if (message.StartsWith("arm calibration:"))
                 text = (message.Contains("not level") || message.Contains("moving") || message.Contains("rejected")
-                    ? "前臂未完全校准（手臂要伸平、停稳）\n" : "前臂已校准\n") + message.Substring(16).Trim();
+                    ? "鍓嶈噦鏈畬鍏ㄦ牎鍑嗭紙鎵嬭噦瑕佷几骞炽€佸仠绋筹級\n" : "鍓嶈噦宸叉牎鍑哱n") + message.Substring(16).Trim();
         }
         if (false)
             text = null;
@@ -460,7 +473,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         if (!showDiagnostics) return;
         GUI.Box(new Rect(12f, 12f, 390f, 650f), GUIContent.none);
         GUILayout.BeginArea(new Rect(22f, 18f, 370f, 640f));
-        GUILayout.Label("实时动作模型  |  " + Status);
+        GUILayout.Label("瀹炴椂鍔ㄤ綔妯″瀷  |  " + Status);
         GUILayout.Label("Frame " + LatestFrame + "  |  Python: " + serverModel);
         GUILayout.Space(5f);
         for (int row = 0; row < (ModelIds.Length + 1) / 2; row++)
@@ -496,39 +509,39 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         bool isRecording = !string.IsNullOrEmpty(recording);
 
         GUILayout.Space(6f);
-        GUILayout.Label(isReplay ? "输入: 回放 " + replaying : "输入: 实时 IMU");
+        GUILayout.Label(isReplay ? "杈撳叆: 鍥炴斁 " + replaying : "杈撳叆: 瀹炴椂 IMU");
         GUILayout.BeginHorizontal();
         GUI.enabled = IsConnected && !isReplay;
-        if (GUILayout.Button(isRecording ? $"■ 停止录制 ({seconds:0.0}s)" : "● 开始录制", GUILayout.Height(31f)))
+        if (GUILayout.Button(isRecording ? $"鈻?鍋滄褰曞埗 ({seconds:0.0}s)" : "鈼?寮€濮嬪綍鍒?, GUILayout.Height(31f)))
             SendControl(isRecording ? "{\"command\":\"stopRecording\"}" : "{\"command\":\"startRecording\"}");
         GUI.enabled = IsConnected;
-        if (GUILayout.Button(isReplay ? "↺ 重新回放" : "▶ 回放", GUILayout.Height(31f)))
+        if (GUILayout.Button(isReplay ? "鈫?閲嶆柊鍥炴斁" : "鈻?鍥炴斁", GUILayout.Height(31f)))
             SendControl("{\"command\":\"startReplay\",\"path\":\"" + EscapeJson(replayPath) + "\"}");
         GUI.enabled = IsConnected && isReplay;
-        if (GUILayout.Button("回到实时", GUILayout.Height(31f)))
+        if (GUILayout.Button("鍥炲埌瀹炴椂", GUILayout.Height(31f)))
             SendControl("{\"command\":\"stopReplay\"}");
         GUI.enabled = true;
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        GUILayout.Label("回放文件", GUILayout.Width(56f));
+        GUILayout.Label("鍥炴斁鏂囦欢", GUILayout.Width(56f));
         replayPath = GUILayout.TextField(replayPath ?? "");
         rememberedReplayPath = replayPath;
         GUILayout.EndHorizontal();
-        GUILayout.Label(string.IsNullOrEmpty(replayPath) ? "（留空 = 最新一次录制）" : "（文件名或绝对路径）");
+        GUILayout.Label(string.IsNullOrEmpty(replayPath) ? "锛堢暀绌?= 鏈€鏂颁竴娆″綍鍒讹級" : "锛堟枃浠跺悕鎴栫粷瀵硅矾寰勶級");
         if (!string.IsNullOrEmpty(message)) GUILayout.Label(message);
     }
 
     private void DrawGameModeControls()
     {
         GUILayout.Space(4f);
-        autoRecordSessions = GUILayout.Toggle(autoRecordSessions, " 每局自动录制输入");
+        autoRecordSessions = GUILayout.Toggle(autoRecordSessions, " 姣忓眬鑷姩褰曞埗杈撳叆");
         rememberedAutoRecord = autoRecordSessions;
-        bool grounded = GUILayout.Toggle(groundAvatar, " 人物贴地");
+        bool grounded = GUILayout.Toggle(groundAvatar, " 浜虹墿璐村湴");
         if (grounded != groundAvatar) SetGroundingEnabled(grounded);
-        autoYawReset = GUILayout.Toggle(autoYawReset, " 每组开始时自动 yaw reset（站直面向屏幕）");
+        autoYawReset = GUILayout.Toggle(autoYawReset, " 姣忕粍寮€濮嬫椂鑷姩 yaw reset锛堢珯鐩撮潰鍚戝睆骞曪級");
         rememberedYawReset = autoYawReset;
-        bool calibrate = GUILayout.Toggle(poseCalibration, "启用传感器校准步骤");
-        bool anchor = GUILayout.Toggle(anchorSensedBones, " 传感器骨骼直接用测量");
+        bool calibrate = GUILayout.Toggle(poseCalibration, "鍚敤浼犳劅鍣ㄦ牎鍑嗘楠?);
+        bool anchor = GUILayout.Toggle(anchorSensedBones, " 浼犳劅鍣ㄩ楠肩洿鎺ョ敤娴嬮噺");
         if (calibrate != poseCalibration || anchor != anchorSensedBones)
         {
             poseCalibration = calibrate;
@@ -539,7 +552,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         rememberedAnchor = anchorSensedBones;
         if (avatarGrounding != null)
         {
-            bool enabled = GUILayout.Toggle(groundAvatar, "人物贴地");
+            bool enabled = GUILayout.Toggle(groundAvatar, "浜虹墿璐村湴");
             if (enabled != groundAvatar) SetGroundingEnabled(enabled);
         }
         if (Time.unscaledTime < armResultUntil)
@@ -741,3 +754,4 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         finally { sendLock.Release(); }
     }
 }
+

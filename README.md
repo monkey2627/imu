@@ -26,6 +26,14 @@ This workspace is the authoritative local source. See `sync/source-of-truth.md` 
 
 The 20 realtime model IDs, their checkpoints, model implementations, data preparation, and training methods are indexed in `local_models/README.md` and `local_models/model_code/README.md`.
 
+## Unity one-click runtime
+
+Opening a supported exercise scene in Play mode now starts the local Python
+bridge automatically, connects the Unity receiver, and begins that scene's
+action-specific start-pose calibration. Python no longer asks for an extra
+neutral-standing window by default. See [`docs/UNITY_ONE_CLICK_START.md`](docs/UNITY_ONE_CLICK_START.md)
+for the exact start-pose mapping and environment overrides.
+
 ## Local validation
 
 Test-only source and temporary artifacts were removed on 2026-11-11 in favor of the actual production and training paths. Validation should now use the real SlimeVR → Python → Unity workflow and the documented training/evaluation entrypoints.
