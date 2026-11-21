@@ -165,6 +165,20 @@ class PoseCalibrator:
         self._bird_dog_samples = None
         self._bird_dog_gravity = None
 
+    def clear_history(self) -> None:
+        """Action switch: drop the sensor history and any pending hold, keep the committed
+        mounting calibration (headings/corrections), which belongs to the wearer, not the action."""
+        self._raw.clear()
+        self._history.clear()
+        self._corrected.clear()
+        self._pending = None
+        self._stand = None
+        self._bird_dog_base = None
+        self._bird_dog_reaches = {}
+        self._bird_dog_arm_holds = {}
+        self._bird_dog_samples = None
+        self._bird_dog_gravity = None
+
     def correct(self, ori: torch.Tensor) -> torch.Tensor:
         """Record the raw (n_labels, 3, 3) orientation and return the corrected one."""
         raw = ori.numpy().astype(np.float64)

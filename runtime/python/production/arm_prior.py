@@ -37,7 +37,18 @@ def _rotation_between(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     a, b = a / np.linalg.norm(a), b / np.linalg.norm(b)
     v, c = np.cross(a, b), float(np.clip(a @ b, -1.0, 1.0))
     if np.linalg.norm(v) < 1e-9:
-        return np.eye(3)
+        if c > 0.0:
+            return np.eye(3)
+        # opposite vectors: half turn about any axis perpendicular to a
+        axis = np.cross(a, [1.0, 0.0, 0.0] if abs(a[0]) < 0.9 else [0.0, 1.0, 0.0])
+        axis /= np.linalg.norm(axis)
+        return 2.0 * np.outer(axis, axis) - np.eye(3)
+    if c < -0.999:
+        # nearly opposite: 1 / (1 + c) loses precision; build the rotation from its axis and angle
+        axis = v / np.linalg.norm(v)
+        k = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
+        angle = np.arccos(c)
+        return np.eye(3) + np.sin(angle) * k + (1 - np.cos(angle)) * k @ k
     k = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
     return np.eye(3) + k + k @ k * (1.0 / (1.0 + c))
 
@@ -47,8 +58,14 @@ def _scaled(rotation: np.ndarray, weight: float) -> np.ndarray:
     angle = np.arccos(np.clip((np.trace(rotation) - 1) / 2, -1.0, 1.0))
     if angle < 1e-6 or weight >= 1.0:
         return rotation if weight >= 1.0 else np.eye(3)
-    axis = np.array([rotation[2, 1] - rotation[1, 2], rotation[0, 2] - rotation[2, 0],
-                     rotation[1, 0] - rotation[0, 1]]) / (2 * np.sin(angle))
+    if np.sin(angle) < 1e-3:
+        # near a half turn the skew part vanishes: the axis is the dominant column of (R + I) / 2
+        sym = (rotation + np.eye(3)) / 2.0
+        axis = sym[:, int(np.argmax(np.diag(sym)))]
+        axis = axis / max(float(np.linalg.norm(axis)), 1e-12)
+    else:
+        axis = np.array([rotation[2, 1] - rotation[1, 2], rotation[0, 2] - rotation[2, 0],
+                         rotation[1, 0] - rotation[0, 1]]) / (2 * np.sin(angle))
     k = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
     a = weight * angle
     return np.eye(3) + np.sin(a) * k + (1 - np.cos(a)) * k @ k

@@ -83,6 +83,10 @@ ACTION_RUNTIME_MODELS = {
     "hipthrust": "waist_imudino_stream_bridge_rehabv5_std_20261118",
     "sidebridge": "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",
     "crunch": "waist_imudino_stream_curlup",
+    # The validated lying-cat path uses the dedicated temporal FlowHMR model;
+    # it is the model that recovers the cat/cow spinal transition from the
+    # forearm/shank/waist sequence.  Keep this aligned with the comparison
+    # videos and the production lyingcat contact rule.
     "lyingcat": "waist_imudino_stream_lyingcat_flowhmr_20261118",
     # Unity sends sidebridge_left / sidebridge_right (never plain "sidebridge").
     "sidebridge_left": "waist_imudino_stream_sidebridge_v3_rehabv5_20261118",

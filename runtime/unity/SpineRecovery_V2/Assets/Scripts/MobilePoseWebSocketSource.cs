@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
@@ -65,6 +65,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
     private CancellationTokenSource cancellation;
     private float[] latestJoints;
     private int latestFrame = -1;
+    private int poseFramesSinceReset;
     private int latestModelFrame = -1;
     private int latestInferEvery = 2;
     private long latestPoseReceivedTimestamp;
@@ -143,9 +144,33 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
 
     public bool IsConnected { get; private set; }
     public int LatestFrame { get { lock (sync) return latestFrame; } }
+    /// <summary>Pose frames received since ResetBridgeState: Python only sends them once its main loop runs
+    /// (model loaded, SlimeVR layout resolved), so this is the readiness signal, not IsConnected.</summary>
+    public int PoseFramesSinceReset { get { lock (sync) return poseFramesSinceReset; } }
     public string Status { get { lock (sync) return status; } }
     public string LatestControlMessage { get { lock (sync) return controlMessage; } }
+    /// <summary>Python reports that its code changed after it started: it is still running the old code.</summary>
+    public bool PythonCodeStale { get; private set; }
     public ExerciseCalibrationFrame LatestExerciseCalibration { get; private set; }
+
+    /// <summary>Forget what the previous Python process reported (its calibration state, messages,
+    /// stale-code flag) so a restarted bridge cannot finish a new calibration with an old result.</summary>
+    public void ResetBridgeState()
+    {
+        lock (sync)
+        {
+            controlMessage = "";
+            poseFramesSinceReset = 0;
+        }
+        LatestExerciseCalibration = null;
+        PythonCodeStale = false;
+    }
+
+    /// <summary>Discard the previous action-calibration result before starting a new button flow.</summary>
+    public void ClearExerciseCalibrationState()
+    {
+        lock (sync) LatestExerciseCalibration = null;
+    }
 
     [Serializable]
     public sealed class ExerciseCalibrationFrame
@@ -300,7 +325,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
             lock (sync) message = controlMessage;
             if (message.StartsWith("arm calibration:"))
                 text = (message.Contains("not level") || message.Contains("moving") || message.Contains("rejected")
-                    ? "鍓嶈噦鏈畬鍏ㄦ牎鍑嗭紙鎵嬭噦瑕佷几骞炽€佸仠绋筹級\n" : "鍓嶈噦宸叉牎鍑哱n") + message.Substring(16).Trim();
+                    ? "前臂未完全校准（手臂要伸平、停稳）\n" : "前臂已校准\n") + message.Substring(16).Trim();
         }
         if (false)
             text = null;
@@ -473,7 +498,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         if (!showDiagnostics) return;
         GUI.Box(new Rect(12f, 12f, 390f, 650f), GUIContent.none);
         GUILayout.BeginArea(new Rect(22f, 18f, 370f, 640f));
-        GUILayout.Label("瀹炴椂鍔ㄤ綔妯″瀷  |  " + Status);
+        GUILayout.Label("实时动作模型  |  " + Status);
         GUILayout.Label("Frame " + LatestFrame + "  |  Python: " + serverModel);
         GUILayout.Space(5f);
         for (int row = 0; row < (ModelIds.Length + 1) / 2; row++)
@@ -509,39 +534,39 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         bool isRecording = !string.IsNullOrEmpty(recording);
 
         GUILayout.Space(6f);
-        GUILayout.Label(isReplay ? "杈撳叆: 鍥炴斁 " + replaying : "杈撳叆: 瀹炴椂 IMU");
+        GUILayout.Label(isReplay ? "输入: 回放 " + replaying : "输入: 实时 IMU");
         GUILayout.BeginHorizontal();
         GUI.enabled = IsConnected && !isReplay;
-        if (GUILayout.Button(isRecording ? $"鈻?鍋滄褰曞埗 ({seconds:0.0}s)" : "鈼?寮€濮嬪綍鍒?, GUILayout.Height(31f)))
+        if (GUILayout.Button(isRecording ? $"■ 停止录制 ({seconds:0.0}s)" : "● 开始录制", GUILayout.Height(31f)))
             SendControl(isRecording ? "{\"command\":\"stopRecording\"}" : "{\"command\":\"startRecording\"}");
         GUI.enabled = IsConnected;
-        if (GUILayout.Button(isReplay ? "鈫?閲嶆柊鍥炴斁" : "鈻?鍥炴斁", GUILayout.Height(31f)))
+        if (GUILayout.Button(isReplay ? "↺ 重新回放" : "▶ 回放", GUILayout.Height(31f)))
             SendControl("{\"command\":\"startReplay\",\"path\":\"" + EscapeJson(replayPath) + "\"}");
         GUI.enabled = IsConnected && isReplay;
-        if (GUILayout.Button("鍥炲埌瀹炴椂", GUILayout.Height(31f)))
+        if (GUILayout.Button("回到实时", GUILayout.Height(31f)))
             SendControl("{\"command\":\"stopReplay\"}");
         GUI.enabled = true;
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        GUILayout.Label("鍥炴斁鏂囦欢", GUILayout.Width(56f));
+        GUILayout.Label("回放文件", GUILayout.Width(56f));
         replayPath = GUILayout.TextField(replayPath ?? "");
         rememberedReplayPath = replayPath;
         GUILayout.EndHorizontal();
-        GUILayout.Label(string.IsNullOrEmpty(replayPath) ? "锛堢暀绌?= 鏈€鏂颁竴娆″綍鍒讹級" : "锛堟枃浠跺悕鎴栫粷瀵硅矾寰勶級");
+        GUILayout.Label(string.IsNullOrEmpty(replayPath) ? "（留空 = 最新一次录制）" : "（文件名或绝对路径）");
         if (!string.IsNullOrEmpty(message)) GUILayout.Label(message);
     }
 
     private void DrawGameModeControls()
     {
         GUILayout.Space(4f);
-        autoRecordSessions = GUILayout.Toggle(autoRecordSessions, " 姣忓眬鑷姩褰曞埗杈撳叆");
+        autoRecordSessions = GUILayout.Toggle(autoRecordSessions, " 每局自动录制输入");
         rememberedAutoRecord = autoRecordSessions;
-        bool grounded = GUILayout.Toggle(groundAvatar, " 浜虹墿璐村湴");
+        bool grounded = GUILayout.Toggle(groundAvatar, " 人物贴地");
         if (grounded != groundAvatar) SetGroundingEnabled(grounded);
-        autoYawReset = GUILayout.Toggle(autoYawReset, " 姣忕粍寮€濮嬫椂鑷姩 yaw reset锛堢珯鐩撮潰鍚戝睆骞曪級");
+        autoYawReset = GUILayout.Toggle(autoYawReset, " 每组开始时自动 yaw reset（站直面向屏幕）");
         rememberedYawReset = autoYawReset;
-        bool calibrate = GUILayout.Toggle(poseCalibration, "鍚敤浼犳劅鍣ㄦ牎鍑嗘楠?);
-        bool anchor = GUILayout.Toggle(anchorSensedBones, " 浼犳劅鍣ㄩ楠肩洿鎺ョ敤娴嬮噺");
+        bool calibrate = GUILayout.Toggle(poseCalibration, "启用传感器校准步骤");
+        bool anchor = GUILayout.Toggle(anchorSensedBones, " 传感器骨骼直接用测量");
         if (calibrate != poseCalibration || anchor != anchorSensedBones)
         {
             poseCalibration = calibrate;
@@ -552,7 +577,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         rememberedAnchor = anchorSensedBones;
         if (avatarGrounding != null)
         {
-            bool enabled = GUILayout.Toggle(groundAvatar, "浜虹墿璐村湴");
+            bool enabled = GUILayout.Toggle(groundAvatar, "人物贴地");
             if (enabled != groundAvatar) SetGroundingEnabled(enabled);
         }
         if (Time.unscaledTime < armResultUntil)
@@ -641,6 +666,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
                 }
                 latestJoints = frame.joints;
                 latestFrame = frame.frame;
+                poseFramesSinceReset++;
                 latestModelFrame = frame.modelFps > 0 ? frame.modelOutputRepresentsFrame : frame.frame;
                 latestInferEvery = Mathf.Max(1, frame.inferEvery);
                 latestPoseReceivedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -660,6 +686,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
                 recordingFile = frame.recordingFile ?? "";
                 recordingSeconds = frame.recordingSeconds;
                 controlMessage = frame.controlMessage ?? "";
+                PythonCodeStale = frame.codeStale;
                 LatestExerciseCalibration = frame.exerciseCalibration;
                 status = "Receiving MobilePose";
             }
@@ -689,6 +716,7 @@ public sealed class MobilePoseWebSocketSource : MonoBehaviour
         public string recordingFile;
         public float recordingSeconds;
         public string controlMessage;
+        public bool codeStale;
         public ExerciseCalibrationFrame exerciseCalibration;
     }
 

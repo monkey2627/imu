@@ -61,8 +61,9 @@ public sealed class MobilePoseSessionRecorder : MonoBehaviour
     private void BeginSession()
     {
         if (mobilePose == null || !mobilePose.AutoRecordSessions || mobilePose.IsReplaying) return;
-        mobilePose.SendSessionCommands(
-            "{\"command\":\"stopRecording\"}",
+        // Keep a recording already running since the calibration (Python ignores startRecording then),
+        // so calibration and the set stay in one file.
+        mobilePose.SendSessionCommand(
             "{\"command\":\"startRecording\",\"name\":\"" +
             EscapeJson(mobilePose.CurrentSceneName) + "\"}");
         recording = true;

@@ -295,8 +295,12 @@ class LyingCatContact:
                 continue
             source = self._basis(_unit(self.offsets[hand]), DOWN)
             wanted_local = g[forearm].T @ (target @ source.T)
-            local[wrist] = local[wrist] @ _scaled(local[wrist].T @ wanted_local, weight)
-            local[hand] = local[hand] @ _scaled(local[hand].T, weight)
+            # Keep the sensed forearm/wrist roll intact; put palm flattening
+            # on the unobserved hand joint so the forearm does not twist.
+            g = _globals(local)
+            current_hand = g[wrist] @ local[hand]
+            desired_hand = g[forearm] @ wanted_local
+            local[hand] = local[hand] @ _scaled(current_hand.T @ desired_hand, weight)
 
     @staticmethod
     def _basis(primary, secondary):

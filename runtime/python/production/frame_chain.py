@@ -1,4 +1,4 @@
-﻿"""Per-frame and per-output processing shared by the realtime loop (run.py) and the
+"""Per-frame and per-output processing shared by the realtime loop (run.py) and the
 offline replay (deadbug_replay.py), so an offline reproduction runs the same chain.
 
 Per 60 Hz frame (``prepare_frame``)::
@@ -23,12 +23,15 @@ from production.curlup_contact import CURLUP_MODELS, CurlUpContact
 from production.deadbug_floor import DeadBugFloorContact
 from production.deadbug_legs import DeadBugLegEstimator
 from production.lyingcat_contact import LyingCatContact
+from production.sidebridge_contact import SideBridgeContact
 from production.start_pose_constraint import StartPoseConstraint
 from production.model_backends import apply_input_offsets
 
 DEADBUG_MODELS = frozenset({"waist_imudino_stream_deadbug_limbmix", "waist_imudino_stream_deadbug_rehabv5",
                             "waist_imudino_stream_deadbug_rehabv5_std_20261118",
                             "waist_imudino_stream_deadbug_simreal"})
+# Actions whose output gets the side-bridge support rule (sidebridge_contact.py); no other action.
+SIDEBRIDGE_ACTIONS = {"sidebridge_left": "left", "sidebridge_right": "right"}
 # Models whose thighs are re-estimated from shank translation (deadbug_legs.py) in leg mode "auto".
 # The RehabV5-std head predicts the dead-bug legs itself; on the real recordings 045157/063451 the
 # estimator folded its tabletop knees/hips to ~140 deg, so it is excluded (2026-11-19, user choice).
@@ -49,6 +52,7 @@ class LegChain:
         self.curlup = CurlUpContact()
         self.lyingcat = LyingCatContact()
         self.deadbug_floor = DeadBugFloorContact()
+        self.sidebridge = {side: SideBridgeContact(side) for side in ("left", "right")}
         self.start_pose = StartPoseConstraint(self.labels)
         self._reported = {}
 
@@ -62,6 +66,8 @@ class LegChain:
         self.curlup.reset(reason)
         self.lyingcat.reset(reason)
         self.deadbug_floor.reset(reason)
+        for rule in self.sidebridge.values():
+            rule.reset(reason)
         self.start_pose.clear()
         self._reported = {}
 
@@ -190,9 +196,19 @@ def postprocess_output(output, calibrator, lag, labels, arm_prior_enabled, model
         output = torch.from_numpy(local).to(output)
         leg_diag["bridge"] = bridge_diag
     if model_id in CURLUP_MODELS and legs is not None:
-        local, contact = legs.curlup.apply(output.detach().numpy().astype(np.float64), dt)
+        waist = None if measured is None or "waist" not in labels else measured[labels.index("waist")]
+        forearms = (None if measured is None or "lw" not in labels or "rw" not in labels
+                    else (measured[labels.index("lw")], measured[labels.index("rw")]))
+        local, contact = legs.curlup.apply(output.detach().numpy().astype(np.float64), dt, waist=waist,
+                                           forearms=forearms)
         output = torch.from_numpy(local).to(output)
         leg_diag["curlup"] = contact
+    if action_id in SIDEBRIDGE_ACTIONS and legs is not None:
+        # Side bridge only (sidebridge_contact.py): legs straight, support forearm on the floor.
+        local, contact = legs.sidebridge[SIDEBRIDGE_ACTIONS[action_id]].apply(
+            output.detach().numpy().astype(np.float64), dt, measured=measured, labels=labels)
+        output = torch.from_numpy(local).to(output)
+        leg_diag["sidebridge"] = contact
     if action_id == "lyingcat" and legs is not None:
         local, contact = legs.lyingcat.apply(output.detach().numpy().astype(np.float64), dt,
                                              measured=measured, labels=labels)

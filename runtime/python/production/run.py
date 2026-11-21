@@ -33,10 +33,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import atexit
+import os
 import queue
 import subprocess
 import threading
 import dataclasses
+import json
 import sys
 import time
 from pathlib import Path
@@ -62,7 +64,8 @@ from production.rotmat import batch_smpl_matrix_to_unity_quat_xyzw, quat_xyzw_to
 from production.solarxr_client import TrackerSample, request_reset, stream_trackers
 from production.pose_calibration import PoseCalibrator
 from production.frame_chain import LegChain, postprocess_output, prepare_frame, push_frame, rebuild_feature
-from production.bridge_contact import bridge_calibration_state, load_bridge_calibration
+from production.bridge_contact import (BRIDGE_MODELS, TRUNK_BIAS_MAX_SPREAD_DEG, bridge_calibration_state,
+                                       load_bridge_calibration)
 from production.layout import BODY_PART_TO_LABEL
 from production.stream_out import PoseBroadcaster
 from production.web_visualizer import start_web_visualizer
@@ -70,12 +73,20 @@ from production.recording import RealtimeRecorder
 from production.input_recording import (
     InputMux, InputRecorder, load_input_recording, recording_path_for, resolve_recording_path,
 )
-from production.pose_context import DEFAULT_CONTEXT_FRAMES, corrected_orientation, replay_start_context
+from production.pose_context import (DEFAULT_CONTEXT_FRAMES, corrected_orientation, estimate_trunk_bias,
+                                     replay_start_context)
 
 MAX_CATCHUP_TICKS = 4   # missed 60 Hz ticks that are re-filled (hold-last) before resyncing the clock
 MAX_TRACKER_STALENESS_SECONDS = 0.15
 DEFAULT_RUNTIME_MODEL = "waist_mobileposer_amass"
 SOURCE_SWITCH_WARMUP_FRAMES = 12   # StreamPoser needs >=2 frames, Line14 reads frame -10
+START_POSE_SEARCH_FRAMES = 8 * 60  # Unity's bird-dog start hold is 8 s
+CODE_CHECK_SECONDS = 5.0
+
+
+def _code_stamp() -> float:
+    """Newest modification time of the realtime code (production/*.py)."""
+    return max(p.stat().st_mtime for p in Path(__file__).resolve().parent.glob("*.py"))
 
 
 def _slerp_xyzw(left, right, amount):
@@ -138,7 +149,12 @@ class CompareJobs:
 
     def __init__(self) -> None:
         self._jobs: queue.Queue = queue.Queue()
+        self._busy = False
         threading.Thread(target=self._run, daemon=True).start()
+
+    @property
+    def idle(self) -> bool:
+        return not self._busy and self._jobs.empty()
 
     def submit(self, recording: Path) -> None:
         self._jobs.put(Path(recording))
@@ -148,6 +164,7 @@ class CompareJobs:
         flags = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
         while True:
             recording = self._jobs.get()
+            self._busy = True
             log = recording.with_name(recording.stem + "_smpl.log")
             try:
                 with log.open("w", encoding="utf-8") as output:
@@ -159,8 +176,19 @@ class CompareJobs:
                     print(f"SMPL surface replay ready: {viewer}", file=sys.stderr)
                 else:
                     print(f"SMPL surface replay failed for {recording.name} (see {log})", file=sys.stderr)
+                # Offline == live check (production/live_replay.py): any offline analysis of this recording
+                # is only trustworthy if the replay reproduces the live output.
+                parity = recording.with_name(recording.stem + "_parity.log")
+                with parity.open("w", encoding="utf-8") as output:
+                    code = subprocess.call(
+                        [sys.executable, "-m", "production.live_replay", str(recording)],
+                        stdout=output, stderr=subprocess.STDOUT, cwd=str(paths.root_dir), creationflags=flags)
+                print(f"Offline/live parity {'OK' if code == 0 else 'MISMATCH'} for {recording.name} (see {parity})",
+                      file=sys.stderr)
             except OSError as exc:
                 print(f"SMPL surface replay could not start: {exc}", file=sys.stderr)
+            finally:
+                self._busy = False
 
 
 class FrameClock:
@@ -498,15 +526,18 @@ async def main_async(args: argparse.Namespace) -> None:
     # Upright reference of the real wearer; a replay primes with its own recorded one instead.
     live_upright = None if startup_replay is not None else upright_reference
     input_recorder: InputRecorder | None = None
-    calibration_auto_recording = False
-    calibration_recording_end_pending = False
     control_message = ""
     # Per-set mounting correction from the coach's start pose, and sensed-bone anchoring of the output.
     calibrator = PoseCalibrator(resolved.labels)
     # Dead-bug thighs from shank translation (deadbug_legs.py) + the acceleration-frame fix (accel_frame.py).
     leg_chain = LegChain(resolved.labels, args.deadbug_legs)
-    from production.exercise_calibration import ExerciseCalibration
+    from production.exercise_calibration import EXERCISES, ExerciseCalibration
     exercise_calibration = ExerciseCalibration(calibrator, simple_start_only=True)
+    from production.reach_heading import ReachHeading
+    from production.start_pose_fit import fit_calibrator as fit_start_pose
+    # Forearm heading from held reaches (bird dog), after the start-pose fit (start_pose_fit.py).
+    reach_heading = ReachHeading(resolved.labels)
+    pending_start_pose_fit = None    # (action, start pose): fit at the end of this update, then rebase
     runtime_action = None
     compare_jobs = None if args.no_auto_compare else CompareJobs()
     calibrator.calibration_enabled = not args.no_pose_calibration
@@ -524,6 +555,112 @@ async def main_async(args: argparse.Namespace) -> None:
                 "startPoseConstraint": leg_chain.start_pose.snapshot(),
                 **bridge_calibration_state(calibrator)}
 
+    # ---- action lifecycle -------------------------------------------------------------------------
+    # One action owns: the action route (model + postprocess rules), the committed start pose and its
+    # constraint, every contact/leg rule state, the model's recurrent/window history and the sensor
+    # history the lagged rules read.  All of it is rebuilt at an action switch or a calibration start
+    # (reset_action_state).  Only the wearer's mounting calibration (headings/corrections) survives;
+    # every start-pose fit overwrites it completely (start_pose_fit.fit_calibrator).
+    calibration_session_id = 0
+    active_start_pose = None        # start pose of the last successful calibration of runtime_action
+    last_reset = None
+    lifecycle_log: List[dict] = []
+    session_fresh = False           # True while the model session has seen no frame since a reset
+
+    def constraint_state():
+        constraint = leg_chain.start_pose
+        return {"enabled": constraint.enabled, "action": constraint.action, "startPose": constraint.start_pose,
+                "weights": constraint.weights.round(3).tolist(), "armWeights": constraint.arm_weights.round(3).tolist()}
+
+    def action_state():
+        return {"action": runtime_action, "startPose": active_start_pose,
+                "calibrationSessionId": calibration_session_id,
+                "calibrationEnabled": calibrator.calibration_enabled, "anchorEnabled": calibrator.anchor_enabled,
+                "startPoseConstraint": constraint_state(), "model": selected_model, "lastReset": last_reset}
+
+    def lifecycle(phase, **extra):
+        """Action/calibration/recording lifecycle event: stderr (one JSON line), the open recording and
+        the next recording's header."""
+        record = {"phase": phase, "action": runtime_action, "startPose": active_start_pose,
+                  "calibrationSessionId": calibration_session_id,
+                  "calibrationEnabled": calibrator.calibration_enabled, "anchorEnabled": calibrator.anchor_enabled,
+                  "startPoseConstraint": constraint_state(), "model": selected_model, **extra}
+        lifecycle_log.append({"hostUnixSeconds": time.time(), **record})
+        del lifecycle_log[:-20]
+        print("lifecycle " + json.dumps(record, ensure_ascii=False, default=str), file=sys.stderr)
+        if input_recorder is not None:
+            input_recorder.write_event("actionLifecycle", **record)
+
+    def close_recording(reason):
+        nonlocal input_recorder, control_message
+        if input_recorder is None:
+            return
+        lifecycle("recordingStop", reason=reason, recordingFile=input_recorder.path.name)
+        input_recorder.close()
+        control_message = f"saved {input_recorder.path.name} ({input_recorder.seconds:.1f}s)"
+        print(f"Saved input recording: {input_recorder.path}", file=sys.stderr)
+        if compare_jobs is not None:
+            compare_jobs.submit(input_recorder.path)
+        input_recorder = None
+
+    def recording_metadata(**extra):
+        return {"model": selected_model, "feedIntervalMs": args.feed_interval_ms,
+                "torchThreads": torch.get_num_threads(), "sampling": "uniform60_v2",
+                "inferEvery": args.infer_every, "initialCalibration": calibration_snapshot(),
+                "actionState": action_state(), "modelSessionFresh": session_fresh,
+                "lifecycle": list(lifecycle_log), **extra}
+
+    async def reset_action_state(reason, new_action):
+        """Clear every action-level state and start `new_action` (None = no action) from a fresh model."""
+        nonlocal runtime_action, active_start_pose, pending_start_pose_fit, arm_prior_enabled
+        nonlocal exercise_arm_prior_backup, session, selected_model, selected_lag, warmup_frames
+        nonlocal since_inference, last_reset, session_fresh
+        previous_action, previous_pose = runtime_action, active_start_pose
+        had_constraint = leg_chain.start_pose.action is not None
+        changed = new_action != previous_action
+        if changed:
+            # One file per action: the previous action's recording never receives the next action.
+            close_recording(f"action switch {previous_action} -> {new_action}")
+        if exercise_calibration.active:
+            lifecycle("calibrationEnd", outcome="cancelled", resetReason=reason)
+        exercise_calibration.clear()        # restores the pre-calibration backup if one was running
+        if exercise_arm_prior_backup is not None:
+            arm_prior_enabled, exercise_arm_prior_backup = exercise_arm_prior_backup, None
+        pending_start_pose_fit = None
+        leg_chain.reset(f"action reset: {reason}")
+        reach_heading.reset()
+        calibrator.clear_history()
+        if changed:
+            calibrator.bridge_waist = calibrator.bridge_trunk = None    # hip-thrust lie-flat is action-level
+        target = ACTION_RUNTIME_MODELS.get(new_action or "") or selected_model
+        if target not in WAIST_MODEL_FILES or resolved.name != "wrists_shanks_waist":
+            target = selected_model
+        if target != selected_model:
+            broadcaster.latest_model_command()      # the action route wins over a queued dropdown choice
+        previous_model = selected_model
+        loaded = (await asyncio.to_thread(resolve_waist_model, target, waist_root)
+                  if target in WAIST_MODEL_FILES else None)
+        if loaded is not None:
+            session = await asyncio.to_thread(make_waist_session, target, resolved, heading, waist_root, loaded)
+        else:
+            session = await asyncio.to_thread(InferenceSession, layout=resolved, model=model, heading=heading)
+        selected_model, selected_lag = target, model_lag_frames(target)
+        recent_observations.clear()
+        warmup_frames = SOURCE_SWITCH_WARMUP_FRAMES
+        since_inference = 0
+        session_fresh = True
+        runtime_action, active_start_pose = new_action, None
+        last_reset = {"reason": reason, "previousAction": previous_action, "previousStartPose": previous_pose,
+                      "action": new_action, "previousModel": previous_model, "model": selected_model,
+                      "modelSessionReset": True, "historyBufferCleared": True, "hostUnixSeconds": time.time()}
+        if had_constraint:
+            lifecycle("startPoseClear", resetReason=reason, previousAction=previous_action,
+                      previousStartPose=previous_pose)
+        if previous_model != selected_model:
+            lifecycle("modelSwitch", resetReason=reason, previousModel=previous_model)
+        lifecycle("actionSwitch" if changed else "fullReset", resetReason=reason, previousAction=previous_action,
+                  previousStartPose=previous_pose, modelSessionReset=True, historyBufferCleared=True)
+
     def rebuild_session(prime):
         if selected_model in WAIST_MODEL_FILES:
             loaded = resolve_waist_model(selected_model, waist_root)
@@ -539,22 +676,9 @@ async def main_async(args: argparse.Namespace) -> None:
         replay_start_context(new_session, observations, selected_model, resolved.labels, calibrator)
         return new_session
 
-    def finish_calibration_recording():
-        nonlocal input_recorder, calibration_auto_recording, calibration_recording_end_pending, control_message
-        if not calibration_auto_recording or input_recorder is None:
-            return
-        input_recorder.close()
-        control_message = f"saved calibration {input_recorder.path.name} ({input_recorder.seconds:.1f}s)"
-        print(f"Saved calibration input recording: {input_recorder.path}", file=sys.stderr)
-        if compare_jobs is not None:
-            compare_jobs.submit(input_recorder.path)
-        input_recorder = None
-        calibration_auto_recording = False
-        calibration_recording_end_pending = False
-
     async def switch_runtime_model(requested_model: str, source: str) -> bool:
         """Switch a waist model and rebuild its state from the recent sensor history."""
-        nonlocal session, selected_model, selected_lag
+        nonlocal session, selected_model, selected_lag, session_fresh
         if not requested_model or requested_model == selected_model:
             return False
         if requested_model not in WAIST_MODEL_FILES:
@@ -574,20 +698,28 @@ async def main_async(args: argparse.Namespace) -> None:
             push_frame(new_session, new_feature, new_ori, torch.from_numpy(old_accel))
         if hasattr(new_session, "finish_replay"):
             new_session.finish_replay()
+        previous_model = selected_model
+        had_constraint = leg_chain.start_pose.action is not None
+        session_fresh = not recent_observations
         session = new_session
         selected_model = requested_model
         selected_lag = model_lag_frames(selected_model)
         leg_chain.reset(f"model switch -> {selected_model}")
+        if had_constraint:
+            lifecycle("startPoseClear", resetReason=f"model switch ({source})")
+        lifecycle("modelSwitch", resetReason=source, previousModel=previous_model,
+                  replayedFrames=len(recent_observations))
         print(f"{source} selected model: {selected_model}", file=sys.stderr)
         return True
 
     async def apply_control(control):
-        nonlocal session, input_recorder, calibration_auto_recording, calibration_recording_end_pending
+        nonlocal session, input_recorder
         nonlocal control_message, warmup_frames, arm_prior_enabled
         nonlocal exercise_arm_prior_backup
-        nonlocal runtime_action
+        nonlocal runtime_action, pending_start_pose_fit, calibration_session_id, session_fresh
         name = control.get("command")
         if exercise_calibration.active and name in (
+                "exerciseCalibrationStart",
                 "poseCalibrate", "standCalibrate", "armsForwardCalibrate", "birdDogStartCalibrate",
                 "birdDogBaseCalibrate", "birdDogLeftReachCalibrate", "birdDogRightReachCalibrate",
                 "poseHoldCalibrate", "yawReset", "startReplay", "stopReplay", "calibrationSessionEnd"):
@@ -602,79 +734,88 @@ async def main_async(args: argparse.Namespace) -> None:
             if tracker_stream.replaying:
                 raise RuntimeError("cannot record while replaying; return to live input first")
             if input_recorder is None:
+                # A new set of the same action: fresh rule state, and the set begins in the action's
+                # calibrated start pose again (the constraint used to be cleared here and never re-armed).
                 leg_chain.reset("startRecording")
+                if runtime_action and active_start_pose:
+                    leg_chain.activate_start_pose(runtime_action, active_start_pose)
+                    lifecycle("startPoseActivate", resetReason="startRecording")
                 input_recorder = InputRecorder(
                     resolved.name, resolved.labels, resolved.label_to_tracker_key,
                     acceleration_source, live_upright, MODEL_FPS,
                     path=recording_path_for(control.get("name")),
-                    metadata={"model": selected_model, "feedIntervalMs": args.feed_interval_ms,
-                              "torchThreads": torch.get_num_threads(),
-                              "sampling": "uniform60_v2", "inferEvery": args.infer_every,
-                              "initialCalibration": calibration_snapshot()},
+                    metadata=recording_metadata(),
                 )
+                lifecycle("recordingStart", recordingFile=input_recorder.path.name)
                 control_message = f"recording {input_recorder.path.name}"
+        elif name == "actionSelect":
+            # Unity's action selector (or a scene load) chose an action; no calibration yet.
+            action = control.get("action") or None
+            if action is not None and action not in EXERCISES and action not in ACTION_RUNTIME_MODELS:
+                raise ValueError(f"unknown action {action!r}")
+            if action != runtime_action:
+                await reset_action_state("actionSelect", action)
+                control_message = f"动作已切换为 {action}，请先完成该动作的起始姿势校准"
+            else:
+                lifecycle("actionSelect", unchanged=True)
         elif name == "calibrationSessionStart":
             if tracker_stream.replaying:
                 raise RuntimeError("cannot record calibration while replaying; return to live input first")
-            leg_chain.reset("calibrationSessionStart")
+            if not control.get("_internal"):
+                # Legacy step flow (bird dog / scene default): a named action selects its route, an
+                # unnamed session has no action.  Either way nothing of the previous action survives.
+                action = control.get("name") if control.get("name") in ACTION_RUNTIME_MODELS else None
+                await reset_action_state("calibrationSessionStart", action)
+            calibration_session_id += 1
             if input_recorder is None:
                 input_recorder = InputRecorder(
                     resolved.name, resolved.labels, resolved.label_to_tracker_key,
                     acceleration_source, live_upright, MODEL_FPS,
-                    path=recording_path_for("calibration"),
-                    metadata={"model": selected_model, "feedIntervalMs": args.feed_interval_ms,
-                              "torchThreads": torch.get_num_threads(), "recordingReason": "calibration session",
-                              "sampling": "uniform60_v2", "inferEvery": args.infer_every,
-                              "initialCalibration": calibration_snapshot()},
+                    path=recording_path_for(control.get("name") or "calibration"),
+                    metadata=recording_metadata(recordingReason="calibration session"),
                 )
-                calibration_auto_recording = True
+                lifecycle("recordingStart", recordingFile=input_recorder.path.name)
             input_recorder.write_event(name)
+            lifecycle("calibrationStart", requestedStartPose=control.get("startPose"))
             control_message = f"recording calibration {input_recorder.path.name}"
         elif name == "calibrationSessionEnd":
+            # The recording keeps running from the calibration into the action; only stopRecording closes it.
             if input_recorder is not None:
                 input_recorder.write_event(name)
-                if calibration_auto_recording:
-                    calibration_recording_end_pending = True
+            lifecycle("calibrationEnd", outcome=exercise_calibration.outcome)
         elif name == "stopRecording":
-            if input_recorder is not None:
-                input_recorder.close()
-                control_message = f"saved {input_recorder.path.name} ({input_recorder.seconds:.1f}s)"
-                print(f"Saved input recording: {input_recorder.path}", file=sys.stderr)
-                if compare_jobs is not None:
-                    compare_jobs.submit(input_recorder.path)
-                input_recorder = None
-                calibration_auto_recording = False
-                calibration_recording_end_pending = False
+            # Only the file ends: the action, its calibration and start pose stay for the next set of the
+            # same action.  Action-level state is cleared by actionSelect / the next calibration start.
+            close_recording("stopRecording")
         elif name == "exerciseCalibrationStart":
             if tracker_stream.replaying:
                 raise RuntimeError("请先返回实时输入再校准")
-            if calibration_recording_end_pending:
-                finish_calibration_recording()
-            runtime_action = control.get("action")
-            action_model = ACTION_RUNTIME_MODELS.get(runtime_action)
-            if action_model:
-                # Discard a connection-time dropdown request that may have
-                # arrived just before the action command; the action route wins.
-                broadcaster.latest_model_command()
-                await switch_runtime_model(action_model, f"{control.get('action')} action")
+            action = control.get("action")
+            if action not in EXERCISES:
+                raise ValueError(f"unknown exercise {action!r}")
+            # Every calibration starts from a clean action state (as a freshly started Python would).
+            await reset_action_state("exerciseCalibrationStart", action)
             prior_before_start = arm_prior_enabled
-            leg_chain.reset("exerciseCalibrationStart")
-            exercise_calibration.start(control.get("action"), control.get("startPose"))
+            reach_heading.activate(None)
+            exercise_calibration.start(action, control.get("startPose"))
             if exercise_arm_prior_backup is None:
                 exercise_arm_prior_backup = prior_before_start
-            arm_prior_enabled = not args.no_arm_prior and not control.get("action", "").startswith("sidebridge")
+            arm_prior_enabled = not args.no_arm_prior and not action.startswith("sidebridge")
             try:
-                await apply_control({"command": "calibrationSessionStart"})
+                await apply_control({"command": "calibrationSessionStart", "name": action, "_internal": True,
+                                     "startPose": exercise_calibration.start_pose})
             except Exception:
                 exercise_calibration.cancel()
                 arm_prior_enabled, exercise_arm_prior_backup = exercise_arm_prior_backup, None
                 raise
-            input_recorder.write_event(name, action=control["action"], startPose=exercise_calibration.start_pose,
+            input_recorder.write_event(name, action=action, startPose=exercise_calibration.start_pose,
+                                       calibrationSessionId=calibration_session_id,
                                        initialHeadings=exercise_calibration.backup[0].tolist(),
                                        initialCorrections=exercise_calibration.backup[1].tolist())
             input_recorder.write_event("setPoseOptions", armPrior=arm_prior_enabled)
             control_message = "按网页姿势提示完成校准；切换动作会取消本次校准"
         elif name == "exerciseCalibrationCancel":
+            # The selected action stays (its route); its start pose is not established.
             exercise_calibration.cancel()
             if exercise_arm_prior_backup is not None:
                 arm_prior_enabled, exercise_arm_prior_backup = exercise_arm_prior_backup, None
@@ -707,11 +848,16 @@ async def main_async(args: argparse.Namespace) -> None:
             # enter it in the current simple-start runtime.
             if not exercise_calibration.simple_start_only:
                 calibrator.start_bird_dog_sequence()
+            reach_heading.activate(None)
             if input_recorder is not None:
                 input_recorder.write_event(name)
         elif name == "birdDogBaseCalibrate":
             if not exercise_calibration.simple_start_only:
                 calibrator.request_bird_dog_base()
+            else:
+                # Sent at the end of the four-point start hold: fit the sensors to the start pose
+                # (start_pose_fit.py) in the main loop, where the exercise rebase also happens.
+                pending_start_pose_fit = ("birddog", "quadruped")
             if input_recorder is not None:
                 input_recorder.write_event(name)
         elif name == "birdDogLeftReachCalibrate":
@@ -749,29 +895,33 @@ async def main_async(args: argparse.Namespace) -> None:
             if input_recorder is not None:
                 input_recorder.close()
                 input_recorder = None
-                calibration_auto_recording = False
-                calibration_recording_end_pending = False
             recording = load_input_recording(resolve_recording_path(control.get("path")))
             if recording.layout != resolved.name or set(recording.labels) != set(resolved.labels):
                 raise RuntimeError(
                     f"{recording.path.name} was recorded with {recording.layout}, current layout is {resolved.name}")
             tracker_stream.start_replay(recording, resolved.label_to_tracker_key)
             calibrator.reset()
+            reach_heading.reset()
             leg_chain.reset("startReplay")
             latest.clear()
             recent_observations.clear()
             session = await asyncio.to_thread(rebuild_session, recording.upright)
             warmup_frames = SOURCE_SWITCH_WARMUP_FRAMES
+            session_fresh = False
+            lifecycle("fullReset", resetReason="startReplay", modelSessionReset=True, historyBufferCleared=True)
             control_message = f"replaying {recording.path.name} ({recording.duration:.1f}s loop)"
         elif name == "stopReplay":
             if tracker_stream.replaying:
                 tracker_stream.stop_replay()
                 calibrator.reset()
+                reach_heading.reset()
                 leg_chain.reset("stopReplay")
                 latest.clear()
                 recent_observations.clear()
                 session = await asyncio.to_thread(rebuild_session, live_upright)
                 warmup_frames = SOURCE_SWITCH_WARMUP_FRAMES
+                session_fresh = False
+                lifecycle("fullReset", resetReason="stopReplay", modelSessionReset=True, historyBufferCleared=True)
                 control_message = "live input" + ("" if live_upright is not None else " (no upright calibration)")
         else:
             return False
@@ -786,6 +936,25 @@ async def main_async(args: argparse.Namespace) -> None:
                 tracker_stream.wake()
 
     wake_task = asyncio.create_task(wake_for_controls())
+
+    # A bridge left running keeps serving old code: Unity reuses whatever listens on the port (and loses
+    # its process handle after a script recompile).  Once the production code changes, warn Unity; with
+    # no Unity client, no recording and no background job, exit so the next Play starts the new code.
+    code_started = _code_stamp()
+    code_stale = False
+
+    async def exit_when_code_changes():
+        nonlocal code_stale
+        while True:
+            await asyncio.sleep(CODE_CHECK_SECONDS)
+            code_stale = _code_stamp() > code_started
+            if (code_stale and not broadcaster._clients and input_recorder is None
+                    and (compare_jobs is None or compare_jobs.idle)):
+                print("Production code changed and no Unity client is connected: exiting so the next "
+                      "Unity Play starts the new code.", file=sys.stderr, flush=True)
+                os._exit(0)
+
+    stale_task = asyncio.create_task(exit_when_code_changes())
 
     frame_index = 0            # 60 Hz model frames pushed into the window
     pose_index = 0             # poses inferred/broadcast
@@ -889,6 +1058,7 @@ async def main_async(args: argparse.Namespace) -> None:
             resolved = new_layout
             keys = [resolved.label_to_tracker_key[label] for label in resolved.labels]
             calibrator.reset()
+            reach_heading.reset()
             leg_chain.reset("trackerBindingChanged")
             recent_observations.clear()
             sensor_history.clear()
@@ -898,6 +1068,10 @@ async def main_async(args: argparse.Namespace) -> None:
             warmup_frames = SOURCE_SWITCH_WARMUP_FRAMES
             binding_problem = last_binding_message = None
             control_message = "tracker binding changed: re-resolved, model history reset"
+            session_fresh = False
+            active_start_pose = None
+            lifecycle("fullReset", resetReason="trackerBindingChanged", modelSessionReset=True,
+                      historyBufferCleared=True)
             continue
         now = time.perf_counter()
         if not tracker_stream.replaying and any(key not in latest or key not in sensor_history or not sensor_history[key]
@@ -905,8 +1079,6 @@ async def main_async(args: argparse.Namespace) -> None:
                or now - sensor_history[key][-1][0] > MAX_TRACKER_STALENESS_SECONDS
                for key in keys):
             next_sample_time = None
-            if calibration_recording_end_pending:
-                finish_calibration_recording()
             continue
         if tracker_stream.replaying:
             # Recorded ticks have already been expanded by InputMux. Do not
@@ -956,13 +1128,43 @@ async def main_async(args: argparse.Namespace) -> None:
             raw_ori = bone_orientation(quats, resolved.labels)
             recent_observations.append((feature.copy(), raw_ori.numpy(), aligned_accel.numpy()))
             push_frame(session, feature, calibrated_ori, aligned_accel)
+            session_fresh = False
+            if replay_calibration is None:     # a replayed recording already carries its headings
+                reach_heading.update(calibrator, calibrator._history[-1])
         del recent_observations[:-480]
         calibration_message = calibrator.advance(frame_steps)
         exercise_event = exercise_calibration.advance(frame_steps)
+        rebase = None     # (action, start pose): rebuild the model context from the start hold
         if exercise_event is not None:
             calibration_message = exercise_event["message"]
+            # The lying-cat start hold is also the mounting-calibration pose.  Older
+            # calibration recordings could report cat_neutral as successfully checked
+            # while leaving all limb mounting corrections at identity.  That makes the
+            # contact rule receive incorrectly oriented wrist/shank measurements.  Make
+            # the fit explicit immediately before the context rebase; fitting from raw
+            # history is idempotent when ExerciseCalibration already performed it.
+            if (exercise_calibration.action == "lyingcat"
+                    and exercise_event.get("pose") == "cat_neutral"
+                    and "start pose fit" not in exercise_event.get("message", "")
+                    and exercise_calibration.outcome == "complete"):
+                fitted, fit_message = fit_start_pose(
+                    calibrator,
+                    np.asarray(calibrator._history)[-START_POSE_SEARCH_FRAMES:],
+                    "lyingcat",
+                    exercise_calibration.start_pose,
+                )
+                if fitted:
+                    calibration_message += f"；{fit_message}"
+                else:
+                    # Do not rebase a lying-cat model on uncalibrated limb axes.  Keep
+                    # the previous calibration and require the user to repeat the hold.
+                    calibration_message += f"；{fit_message}"
+                    exercise_calibration.outcome = "failed"
+                    exercise_calibration.active = False
             if input_recorder is not None:
                 input_recorder.write_event("exercisePoseCalibrate", **exercise_event)
+            lifecycle("calibrationPoseStep", pose=exercise_event.get("pose"),
+                      passed=exercise_calibration.outcome != "failed", message=exercise_event.get("message"))
             if not exercise_calibration.active:
                 outcome = exercise_calibration.outcome
                 if outcome != "complete" and exercise_arm_prior_backup is not None:
@@ -973,31 +1175,57 @@ async def main_async(args: argparse.Namespace) -> None:
                                                action=exercise_calibration.action,
                                                startPose=exercise_calibration.start_pose)
                 if outcome == "complete":
-                    calibrator.refresh_corrected_history()
-                    context = recent_observations[-DEFAULT_CONTEXT_FRAMES:]
-                    session = await asyncio.to_thread(rebuild_context_session, context)
-                    recent_observations[:] = context
-                    leg_chain.reset(f"start pose -> {exercise_calibration.action}/{exercise_calibration.start_pose}")
-                    leg_chain.activate_start_pose(exercise_calibration.action, exercise_calibration.start_pose)
-                    warmup_frames = 0
-                    since_inference = 0
-                    if input_recorder is not None:
-                        input_recorder.write_event(
-                            "modelContextRebase", action=exercise_calibration.action,
-                            startPose=exercise_calibration.start_pose, frames=len(context),
-                            headings=calibrator.headings.tolist(), corrections=calibrator.corrections.tolist(),
-                            **bridge_calibration_state(calibrator))
+                    rebase = (exercise_calibration.action, exercise_calibration.start_pose)
                 await apply_control({"command": "calibrationSessionEnd"})
                 calibration_message += ((f"；全部校准完成，模型已从 {exercise_calibration.start_pose} 起始姿态重建上下文")
                                         if outcome == "complete" else "；校准未通过，已恢复原校准，请重试")
+        if pending_start_pose_fit is not None:
+            fit_action, fit_pose = pending_start_pose_fit
+            pending_start_pose_fit = None
+            passed, calibration_message = fit_start_pose(
+                calibrator, np.asarray(calibrator._history)[-START_POSE_SEARCH_FRAMES:], fit_action, fit_pose)
+            if input_recorder is not None:
+                input_recorder.write_event("startPoseFit", action=fit_action, startPose=fit_pose, passed=passed,
+                                           message=calibration_message)
+            calibration_message += (f"；模型已从 {fit_pose} 起始姿态重建上下文" if passed
+                                    else "；未修正传感器，请摆好起始姿势后重新校准")
+            if passed:
+                rebase = (fit_action, fit_pose)
+        if rebase is not None:
+            rebase_action, rebase_pose = rebase
+            calibrator.refresh_corrected_history()
+            context = recent_observations[-DEFAULT_CONTEXT_FRAMES:]
+            if (rebase_action == "hipthrust" and selected_model in BRIDGE_MODELS
+                    and calibrator.bridge_waist is not None):
+                bias, spread = await asyncio.to_thread(
+                    estimate_trunk_bias, rebuild_session(None), context, selected_model, resolved.labels, calibrator)
+                if bias is not None and spread <= TRUNK_BIAS_MAX_SPREAD_DEG:
+                    calibrator.bridge_trunk = bias
+                    calibration_message = (calibration_message or "") + f"；躯干平躺偏差已校准（波动{spread:.0f}°）"
+                else:
+                    calibration_message = ((calibration_message or "")
+                                           + f"；躯干平躺偏差未校准（起始姿势不够稳定，波动{spread:.0f}°）")
+            session = await asyncio.to_thread(rebuild_context_session, context)
+            recent_observations[:] = context
+            leg_chain.reset(f"start pose -> {rebase_action}/{rebase_pose}")
+            leg_chain.activate_start_pose(rebase_action, rebase_pose)
+            active_start_pose = rebase_pose if rebase_action == runtime_action else None
+            reach_heading.activate(rebase_action)
+            warmup_frames = 0
+            since_inference = 0
+            if input_recorder is not None:
+                input_recorder.write_event(
+                    "modelContextRebase", action=rebase_action, startPose=rebase_pose, frames=len(context),
+                    headings=calibrator.headings.tolist(), corrections=calibrator.corrections.tolist(),
+                    **bridge_calibration_state(calibrator))
+            lifecycle("startPoseActivate", resetReason="modelContextRebase", rebaseAction=rebase_action,
+                      rebaseStartPose=rebase_pose, contextFrames=len(context), modelSessionReset=True)
         if calibration_message:
             control_message = calibration_message
             print(calibration_message, file=sys.stderr)
             if input_recorder is not None:
                 input_recorder.write_event("poseCalibrationResult", message=calibration_message,
                                            corrections=calibrator.corrections.tolist())
-        if calibration_recording_end_pending:
-            finish_calibration_recording()
         frame_index += frame_steps
         since_inference += frame_steps
         model_frame = frame_index - 1      # index of the newest frame in the window
@@ -1035,7 +1263,7 @@ async def main_async(args: argparse.Namespace) -> None:
             continue
         since_inference %= args.infer_every
         requested_model = broadcaster.latest_model_command()
-        action_model = ACTION_RUNTIME_MODELS.get(runtime_action or exercise_calibration.action)
+        action_model = ACTION_RUNTIME_MODELS.get(runtime_action)
         if action_model:
             requested_model = action_model
         if requested_model and requested_model != selected_model:
@@ -1052,7 +1280,7 @@ async def main_async(args: argparse.Namespace) -> None:
         exercise_calibration.observe_output(output.detach().numpy(), selected_model)
         output, arm_prior_weights, deadbug_legs = postprocess_output(
             output, calibrator, selected_lag, resolved.labels, arm_prior_enabled, selected_model, leg_chain,
-            dt=args.infer_every / 60.0, action_id=exercise_calibration.action)
+            dt=args.infer_every / 60.0, action_id=runtime_action)
         inference_end_monotonic = time.perf_counter()
         quats_out = batch_smpl_matrix_to_unity_quat_xyzw(output.detach().numpy())
         tracker_rotations = np.stack([quat_xyzw_to_unity_quat_xyzw(q) for q in quats])
@@ -1086,6 +1314,12 @@ async def main_async(args: argparse.Namespace) -> None:
             "recordingSeconds": input_recorder.seconds if input_recorder is not None else 0.0,
             "controlMessage": control_message,
             "exerciseCalibration": exercise_calibration.status(),
+            # What the offline replay (production/live_replay.py) needs to reproduce this output.
+            "actionId": runtime_action,
+            "codeStale": code_stale,
+            "reachHeadingEvents": reach_heading.events[-4:],
+            # Action lifecycle (run.py reset_action_state): which action/start pose this output belongs to.
+            "actionState": action_state(),
         }
         if input_recorder is not None:
             input_recorder.write_prediction(raw_output_quats, quats_out, diagnostics, calibration_snapshot())

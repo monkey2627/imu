@@ -22,8 +22,6 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     [SerializeField] private MobilePoseWebSocketSource mobilePose;
     [SerializeField] private List<Step> steps = new List<Step>();
     [SerializeField] private CalibrationMode selectedMode = CalibrationMode.SceneDefault;
-    [Tooltip("Start the scene's action calibration as soon as Unity connects to Python.")]
-    [SerializeField] private bool autoBeginOnConnection = true;
     [Tooltip("Optional action-specific start pose ID. Empty uses the action's default pose.")]
     [SerializeField] private string startPoseId = "";
 
@@ -34,7 +32,8 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
     private string armCalibrationResult;
     private float resultUntil;
     private bool armPriorSent;
-    private bool autoBeginSent;
+    private string sentAction;    // action last announced to Python (actionSelect); null after a disconnect
+    private bool restarting;      // waiting for a (re)started Python bridge before this calibration
 
     private void Awake()
     {
@@ -43,9 +42,84 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
         if (selectedMode == CalibrationMode.SceneDefault) selectedMode = ModeForScene(gameObject.scene.name);
     }
 
+    /// <summary>Python resets every action-level state itself at each calibration start (run.py
+    /// reset_action_state), so the running bridge is reused.  It is restarted only when it reports that
+    /// its code changed after it started (codeStale), so a calibration never runs old code.</summary>
     public void BeginCalibration()
     {
+        if (IsCalibrating || restarting) return;
+        MobilePosePythonLauncher launcher = mobilePose != null ? mobilePose.GetComponent<MobilePosePythonLauncher>() : null;
+        if (launcher == null) launcher = FindObjectOfType<MobilePosePythonLauncher>(true);
+        MobilePosePythonLauncher.ConsumeFreshProcess();
+        if (launcher != null && mobilePose != null && !mobilePose.IsReplaying && mobilePose.PythonCodeStale)
+        {
+            StopAllCoroutines();
+            StartCoroutine(RestartBridgeThenCalibrate(launcher));
+            return;
+        }
+        if (mobilePose != null && !mobilePose.IsReplaying)
+        {
+            StopAllCoroutines();
+            StartCoroutine(WaitForBridgeThenCalibrate());
+            return;
+        }
+        BeginCalibrationOnCurrentBridge();
+    }
+
+    /// <summary>The bridge Unity launched at Play: it may still be loading the model or waiting for SlimeVR.</summary>
+    private IEnumerator WaitForBridgeThenCalibrate()
+    {
+        restarting = true;
+        IsCalibrating = true;
+        IsComplete = false;
+        armCalibrationResult = null;
+        RemainingSeconds = 0f;
+        float deadline = Time.realtimeSinceStartup + MobilePosePythonLauncher.RestartConnectTimeoutSeconds;
+        while (!MobilePosePythonLauncher.IsBridgeReady(mobilePose))
+        {
+            if (Time.realtimeSinceStartup > deadline)
+            {
+                restarting = false;
+                IsCalibrating = false;
+                CurrentInstruction = "Python 未就绪：一直没有收到姿态数据（SlimeVR 是否已连接、追踪器是否已绑定？）";
+                yield break;
+            }
+            CurrentInstruction = mobilePose.IsConnected
+                ? "Python 已启动，正在等待 SlimeVR 数据…"
+                : "正在等待 Python 启动（加载模型），请稍候…";
+            yield return new WaitForSecondsRealtime(0.2f);
+        }
+        restarting = false;
+        IsCalibrating = false;
+        BeginCalibrationOnCurrentBridge();
+    }
+
+    private IEnumerator RestartBridgeThenCalibrate(MobilePosePythonLauncher launcher)
+    {
+        restarting = true;
+        IsCalibrating = true;
+        IsComplete = false;
+        armCalibrationResult = null;
+        RemainingSeconds = 0f;
+        yield return launcher.RestartBridge(mobilePose, message => CurrentInstruction = message);
+        restarting = false;
+        IsCalibrating = false;
+        if (!string.IsNullOrEmpty(launcher.RestartError))
+        {
+            CurrentInstruction = "重启 Python 失败：" + launcher.RestartError;
+            yield break;
+        }
+        armPriorSent = false;         // the new bridge needs the per-scene pose options again
+        sentAction = null;
+        BeginCalibrationOnCurrentBridge();
+    }
+
+    private void BeginCalibrationOnCurrentBridge()
+    {
         if (IsCalibrating) return;
+        // A new button press must never consume the previous action's terminal
+        // exerciseCalibration frame.
+        if (mobilePose != null) mobilePose.ClearExerciseCalibrationState();
         if (selectedMode != CalibrationMode.SceneDefault && selectedMode != CalibrationMode.BirdDog)
         {
             if (mobilePose == null || !mobilePose.IsConnected || mobilePose.IsReplaying)
@@ -81,6 +155,23 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             case CalibrationMode.LyingCat: return "lyingcat";
             default: return string.Empty;
         }
+    }
+
+    /// <summary>Action id Python routes on (run.py actionSelect), including bird dog and the scene default.</summary>
+    private string SelectedAction()
+    {
+        CalibrationMode mode = selectedMode == CalibrationMode.SceneDefault ? ModeForScene(gameObject.scene.name) : selectedMode;
+        return mode == CalibrationMode.BirdDog ? "birddog" : ExerciseAction(mode);
+    }
+
+    /// <summary>Tell Python which action is selected; it clears the previous action's state on a change.</summary>
+    private void AnnounceAction()
+    {
+        if (mobilePose == null || !mobilePose.IsConnected || mobilePose.IsReplaying || IsCalibrating) return;
+        string action = SelectedAction();
+        if (action == sentAction) return;
+        mobilePose.SendCalibrationCommand("{\"command\":\"actionSelect\",\"action\":\"" + EscapeJson(action) + "\"}");
+        sentAction = action;
     }
 
     private static string DefaultStartPose(CalibrationMode mode)
@@ -134,7 +225,7 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
         if (mode == CalibrationMode.DeadBug) return "死虫：只保持桌面式起始位置。";
         if (mode == CalibrationMode.SideBridge) return "侧桥：只保持对应侧卧起始位置。";
         if (mode == CalibrationMode.HipThrust) return "臀桥：只保持屈膝仰卧起始位置。";
-        if (mode == CalibrationMode.Crunch) return "卷腹：只保持仰卧起始位置。";
+        if (mode == CalibrationMode.Crunch) return "卷腹：只保持仰卧屈膝、双手抱头的起始位置。";
         if (mode == CalibrationMode.LyingCat) return "卧位猫：只保持四点跪姿起始位置。";
         switch (mode)
         {
@@ -162,8 +253,12 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
         while (mobilePose != null && !mobilePose.IsConnected)
             yield return null;
 
+        // Naming the action lets Python switch to its model before the recording header is written.
+        bool birdDog = steps.Exists(s => s != null && s.kind == StepKind.BirdDogBase);
         if (!mobilePose.IsReplaying)
-            mobilePose.SendCalibrationCommand("{\"command\":\"calibrationSessionStart\"}");
+            mobilePose.SendCalibrationCommand(birdDog
+                ? "{\"command\":\"calibrationSessionStart\",\"name\":\"birddog\"}"
+                : "{\"command\":\"calibrationSessionStart\"}");
 
         foreach (Step step in steps)
         {
@@ -241,14 +336,18 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
 
     private void Update()
     {
-        if (autoBeginOnConnection && !autoBeginSent && !IsCalibrating && !IsComplete &&
-            selectedMode != CalibrationMode.SceneDefault && mobilePose != null && mobilePose.IsConnected)
+        // No automatic calibration on Play: it starts only from the "开始校准" / "重新校准" button.
+        if (IsCalibrating && !restarting && selectedMode != CalibrationMode.BirdDog && mobilePose != null)
         {
-            autoBeginSent = true;
-            BeginCalibration();
-        }
-        if (IsCalibrating && selectedMode != CalibrationMode.BirdDog && mobilePose != null)
-        {
+            string controlError = mobilePose.LatestControlMessage ?? string.Empty;
+            if (controlError.IndexOf("exerciseCalibrationStart failed:", StringComparison.Ordinal) >= 0)
+            {
+                IsCalibrating = false;
+                IsComplete = false;
+                CurrentInstruction = controlError;
+                resultUntil = Time.unscaledTime + 8f;
+                return;
+            }
             MobilePoseWebSocketSource.ExerciseCalibrationFrame state = mobilePose.LatestExerciseCalibration;
             if (state != null && state.action == ExerciseAction(selectedMode))
             {
@@ -270,8 +369,13 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             // The straight-arm prior (Python arm_prior.py) is wrong for the side-bridge support arm,
             // whose level forward forearm comes with a bent elbow; send the per-scene choice on connect.
             if (!mobilePose.IsConnected)
+            {
                 armPriorSent = false;
-            else if (!armPriorSent)
+                sentAction = null;
+            }
+            else
+                AnnounceAction();
+            if (mobilePose.IsConnected && !armPriorSent)
             {
                 bool sideBridge = gameObject.scene.name.ToLowerInvariant().Contains("sidebridge");
                 mobilePose.SendCalibrationCommand(
@@ -282,7 +386,7 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
         if (mobilePose == null || Time.unscaledTime >= resultUntil) return;
         string message = mobilePose.LatestControlMessage;
         if (message.StartsWith("arm calibration:") || message.StartsWith("bird dog calibration:") ||
-            message.StartsWith("pose hold calibration"))
+            message.StartsWith("pose hold calibration") || message.StartsWith("start pose fit"))
             armCalibrationResult = message;
     }
 
@@ -331,6 +435,8 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
             if (armCalibrationResult.Contains("CHECK FAILED"))
                 text += "\n姿势与预期不符，校准可能不准，建议完成后点“重新校准”。";
         }
+        if (mobilePose != null && mobilePose.PythonCodeStale)
+            text = "⚠ Python 仍在运行旧代码（代码已更新）。点击“开始校准”或“重新校准”会自动重启 Python。\n" + text;
         float top = 12f * scale;
         if (!IsCalibrating)
         {
@@ -345,6 +451,11 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
                 steps = selectedMode == CalibrationMode.SceneDefault
                     ? CreateDefaultSteps(gameObject.scene.name)
                     : CreateDefaultSteps(SceneToken(selectedMode));
+                // A new action is not calibrated: show "开始校准", drop the old result and let Python
+                // clear the previous action (actionSelect is sent from Update while connected).
+                IsComplete = false;
+                armCalibrationResult = null;
+                if (mobilePose != null) mobilePose.ClearExerciseCalibrationState();
             }
             top += 72f * scale;
             text = ModeDescription(selectedMode) + "\n" + text;
@@ -378,7 +489,7 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
         // the current UI present the same simple-start flow as Python.
         if (lower.Contains("birddog"))
             return new List<Step> { new Step { kind = StepKind.BirdDogBase,
-                instruction = "保持鸟狗式起始姿势：双手撑地、双膝着地，背部平稳，保持不动。", seconds = 8f } };
+                instruction = "保持鸟狗式起始姿势：双手撑地、手掌平放、手指朝前，双膝着地，背部平稳，保持不动。", seconds = 8f } };
         if (lower.Contains("deadbug"))
             return new List<Step> { PoseHold("deadbug_tabletop",
                 "保持死虫式起始姿势：仰卧，双臂向上伸直，双腿抬起，大腿垂直、小腿水平，保持不动。", 8f) };
@@ -392,8 +503,10 @@ public sealed class MobilePoseCalibrationController : MonoBehaviour
                 "保持侧桥起始姿势：侧卧，前臂支撑，身体保持稳定，保持不动。", 8f) };
         }
         if (lower.Contains("crunch"))
-            return new List<Step> { PoseHold("supine_arms_side",
-                "保持卷腹起始姿势：仰卧，双臂自然放置，保持不动。", 8f) };
+            // No poseHoldCalibrate: Python's "supine_arms_side" hold would turn hands-behind-head forearms
+            // toward the feet.  The crunch start pose is fitted by exerciseCalibrationStart (start_pose_fit.py).
+            return new List<Step> { PoseHold("",
+                "保持卷腹起始姿势：仰卧屈膝、双脚踩地；双手抱在头后、手肘向两侧打开，保持不动。（双臂放体侧会校准失败）", 8f) };
         if (lower.Contains("lyingcat") || lower.Contains("cat"))
             return new List<Step> { PoseHold("cat_neutral",
                 "保持跪姿猫式起始姿势：双手撑地、双膝着地，背部平稳，保持不动。", 8f) };

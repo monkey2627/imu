@@ -105,6 +105,36 @@ class CalibrationChecks(unittest.TestCase):
         np.testing.assert_allclose(cal.headings, before[0])
         np.testing.assert_allclose(cal.corrections, before[1])
 
+    def test_simple_start_aligns_level_forearm_heading_only(self):
+        # Live 2026-11-19: the right forearm read 177° toward the head while lying supine.
+        # Default start poses use full templates (start_pose_fit_test.py); start poses without a template
+        # (here the raised hip thrust) still align only the level forearm heading.
+        for action, start_pose, pose in (("hipthrust", "raised", "bridge_check"),):
+            with self.subTest(action=action):
+                cal = PoseCalibrator(LABELS)
+                sequence = ExerciseCalibration(cal, simple_start_only=True)
+                sequence.start(action, start_pose)
+                feed(cal, observations(cal, pose, error=False))
+                values = observations(cal, pose, error=False)
+                values[1] = _yaw(np.pi) @ values[1]
+                feed(cal, values, 120)
+                passed, message = sequence.capture(pose, 2)
+                self.assertTrue(passed, message)
+                self.assertAlmostEqual(abs(np.degrees(np.arctan2(cal.headings[1][0, 2], cal.headings[1][0, 0]))),
+                                       180.0, delta=1.0)
+                np.testing.assert_allclose(cal.corrections, np.tile(np.eye(3), (5, 1, 1)))
+                np.testing.assert_allclose(cal.headings[2:], np.tile(np.eye(3), (3, 1, 1)))
+        # A forearm pointing up cannot be fixed by a yaw: still a failed check.
+        cal = PoseCalibrator(LABELS)
+        sequence = ExerciseCalibration(cal, simple_start_only=True)
+        sequence.start("hipthrust", "raised")
+        values = observations(cal, "bridge_check", error=False)
+        values[1] = _rotation_between(BONE_AXES["rw"], np.array([0., 1., 0.]))
+        feed(cal, values, 120)
+        passed, message = sequence.capture("bridge_check", 2)
+        self.assertFalse(passed, message)
+        np.testing.assert_allclose(cal.headings, np.tile(np.eye(3), (5, 1, 1)))
+
     def test_moving_missing_and_disabled(self):
         cal = PoseCalibrator(LABELS)
         sequence = ExerciseCalibration(cal)

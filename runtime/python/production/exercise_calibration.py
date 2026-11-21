@@ -11,6 +11,7 @@ from collections import deque
 import numpy as np
 from production.bridge_contact import (BRIDGE_MODELS, TRUNK_BIAS_MAX_SPREAD_DEG, WAIST_FLAT_MAX_DEG, trunk_bias,
                                        waist_flat_fit)
+from production.start_pose_fit import TEMPLATES as START_POSE_TEMPLATES, fit_calibrator as fit_start_pose
 from production.pose_calibration import (
     BONE_AXES, _angle_deg, _azimuth,
     _elevation, _rotation_between, _wrap, _yaw,
@@ -27,7 +28,7 @@ TABLETOP = step("tabletop", "仰卧，大腿竖直、双膝约90度，小腿水�
 
 EXERCISES = {
     "deadbug": {"label": "死虫", "default_start_pose": "tabletop", "start_poses": {
-        "tabletop": step("tabletop_check", "死虫桌面式起始姿势：双臂朝天，大腿竖直、小腿水平，保持不动。"),
+        "tabletop": step("tabletop_check", "死虫桌面式起始姿势：仰卧，双臂伸直朝天、掌心相对；大腿竖直、小腿水平，保持不动。"),
         "supine": step("supine_check", "死虫仰卧准备姿势：屈膝脚踩地，双臂伸直贴身体两侧，保持不动。"),
     }, "steps": [ARMS, TABLETOP,
         step("deadbug_left", "左臂沿头顶方向伸直、靠近水平，右腿向脚端伸直；腰背稳定，保持不动。"),
@@ -36,7 +37,7 @@ EXERCISES = {
     # Glute bridge: the first hold also levels the waist (lie flat: back, buttocks and head on the floor), the
     # second records the network's trunk output while lying flat (bridge models only, bridge_contact.py).
     "hipthrust": {"label": "臀桥", "default_start_pose": "supine", "start_poses": {
-        "supine": step("supine_check", "臀桥落臀起始姿势：屈膝、双脚踩地，背部和臀部贴垫，保持不动。"),
+        "supine": step("supine_check", "臀桥起始姿势：仰卧屈膝、双脚踩地，背部和臀部贴垫；双臂伸直贴身体两侧，手指朝脚、掌心向下，保持不动。"),
         "raised": step("bridge_check", "臀桥抬臀起始姿势：保持双脚和肩背支撑，抬髋后保持不动。"),
     }, "steps": [
         step("supine_straight_flat", "仰卧，背部、臀部和头都平贴垫子；双腿伸直、平行放在垫上；双臂伸直贴身体两侧，"
@@ -45,28 +46,28 @@ EXERCISES = {
         step("bridge_check", "缓慢抬臀到臀桥姿势；双臂仍平放地面、手指朝脚，双脚不移动，保持不动。"),
         step("supine_check", "缓慢落臀回到准备姿势，双臂仍贴体侧，保持不动。", 6)]},
     "sidebridge_left": {"label": "侧桥（左侧支撑）", "default_start_pose": "side_rest", "start_poses": {
-        "side_rest": step("side_left", "左侧卧准备姿势：左肘在肩下，先不抬髋，保持不动。", 10),
+        "side_rest": step("side_left", "左侧桥起始姿势（未撑起）：左侧卧，左肘撑在肩下、前臂平放朝前、掌心向下；双腿伸直与身体成一条直线；右臂伸直沿身体、手放在大腿外侧。先不抬髋，保持不动。", 10),
         "side_raised": step("side_left_check", "左侧桥抬髋起始姿势：左肘支撑并抬髋，保持不动。"),
     }, "steps": [STRAIGHT,
         step("side_left", "左侧卧，左肘在肩下、左前臂水平朝胸前；右臂伸直沿身体指向脚端。先不抬髋，保持不动。", 10),
         step("side_left_check", "维持左肘支撑，缓慢抬髋；左前臂朝胸前、右臂沿体侧，保持不动。"),
         step("side_legs_check", "落髋后保持侧卧，双腿伸直、双小腿沿身体指向脚端且平行，保持不动。")]},
     "sidebridge_right": {"label": "侧桥（右侧支撑）", "default_start_pose": "side_rest", "start_poses": {
-        "side_rest": step("side_right", "右侧卧准备姿势：右肘在肩下，先不抬髋，保持不动。", 10),
+        "side_rest": step("side_right", "右侧桥起始姿势（未撑起）：右侧卧，右肘撑在肩下、前臂平放朝前、掌心向下；双腿伸直与身体成一条直线；左臂伸直沿身体、手放在大腿外侧。先不抬髋，保持不动。", 10),
         "side_raised": step("side_right_check", "右侧桥抬髋起始姿势：右肘支撑并抬髋，保持不动。"),
     }, "steps": [STRAIGHT,
         step("side_right", "右侧卧，右肘在肩下、右前臂水平朝胸前；左臂伸直沿身体指向脚端。先不抬髋，保持不动。", 10),
         step("side_right_check", "维持右肘支撑，缓慢抬髋；右前臂朝胸前、左臂沿体侧，保持不动。"),
         step("side_legs_check", "落髋后保持侧卧，双腿伸直、双小腿沿身体指向脚端且平行，保持不动。")]},
     "crunch": {"label": "卷腹", "default_start_pose": "supine", "start_poses": {
-        "supine": step("supine_check", "卷腹仰卧起始姿势：屈膝脚踩地，双臂平放体侧，保持不动。"),
+        "supine": step("supine_check", "卷腹起始姿势：仰卧屈膝、双脚踩地，背部平贴垫子；双手抱在头后、手肘向两侧打开，保持不动。"),
         "raised": step("crunch_check", "卷腹抬肩起始姿势：小幅抬起肩胛，双臂沿大腿伸出，保持不动。"),
     }, "steps": [STRAIGHT,
         step("supine_check", "屈膝、脚踩地，双臂伸直平放体侧，先放松躺好，保持不动。"),
         step("crunch_check", "小幅卷腹抬起肩胛，双臂伸直沿大腿朝脚端伸出、尽量平行地面；不拉头，保持不动。"),
         step("supine_check", "缓慢躺回垫上，双臂放回体侧，保持不动。", 6)]},
     "lyingcat": {"label": "卧位猫（四点跪姿猫式）", "default_start_pose": "quadruped", "start_poses": {
-        "quadruped": step("cat_neutral", "四点跪姿中立起始姿势：双手在肩下、双膝在髋下，保持不动。", 4),
+        "quadruped": step("cat_neutral", "四点跪姿中立起始姿势：双手在肩下、手掌平放、手指朝前，双膝在髋下，保持不动。", 4),
     }, "steps": [
         step("cat_neutral", "四点跪姿中立位：双手固定在肩下、双膝固定在髋下，前臂竖直，小腿沿身体向后。背部自然平直，保持不动。", 4)]},
 }
@@ -166,6 +167,14 @@ class ExerciseCalibration:
         self.reference_waist = None
         self.outputs.clear()
 
+    def clear(self):
+        """Forget the previous action entirely (action switch).  Restores the backup if still running."""
+        self.cancel()
+        self.action, self.start_pose, self.index, self.elapsed = None, None, 0, 0
+        self.steps, self.results, self.outcome = [], [], "idle"
+        self.reference_waist = None
+        self.outputs.clear()
+
     def cancel(self):
         if self.active and self.backup is not None:
             cal = self.calibrator
@@ -214,9 +223,12 @@ class ExerciseCalibration:
         """Used by both the live sequence and offline replay. Commit each hold atomically."""
         spec = POSES[pose]
         if self.simple_start_only:
-            # The start pose is a validity check only; do not refit mounting
-            # corrections from the user's action posture.
-            spec = {label: (target, "check") for label, (target, _op) in spec.items()}
+            # The start pose never refits mounting corrections from the user's action posture.  A level
+            # forearm still gets its world heading re-aligned: SlimeVR forearm yaw drifts between sets
+            # (live 2026-11-19: right forearm 180° off lying supine, both arms ~90° off in bird dog), and
+            # a vertical target cannot observe it.  Shanks and vertical targets are only checked.
+            spec = {label: (target, "heading" if label in ("lw", "rw") and target not in ("up", "down")
+                            else "check") for label, (target, _op) in spec.items()}
         cal = self.calibrator
         samples = np.asarray(cal._history)[-int(seconds * 60):]
         old = (cal.headings.copy(), cal.corrections.copy(), cal.bridge_waist, cal.bridge_trunk)
@@ -231,6 +243,22 @@ class ExerciseCalibration:
                 or (pose.startswith("cat_") and chest_up > -.65)
                 or (pose.startswith("side_") and abs(chest_up) > .65)):
             return False, f"exercise calibration ({pose}): 躯干姿势不符，请按提示仰卧或四点跪姿"
+        if (self.simple_start_only and (self.action, self.start_pose) in START_POSE_TEMPLATES
+                and pose == EXERCISES[self.action]["start_poses"][self.start_pose]["pose"]):
+            # Full start-pose template (start_pose_fit.py): world heading + mounting of every limb sensor.
+            passed, message = fit_start_pose(cal, samples, self.action, self.start_pose)
+            if passed and self.action == "hipthrust":
+                # The hip-thrust start lies flat on the back: it also gives the lie-flat waist correction
+                # (bridge models, bridge_contact.py).  The trunk output bias follows at the model rebase,
+                # once the network sees the corrected input (pose_context.estimate_trunk_bias).
+                correction, tilt = waist_flat_fit(waist)
+                if correction is None or tilt > WAIST_FLAT_MAX_DEG:
+                    cal.headings[:], cal.corrections[:], cal.bridge_waist, cal.bridge_trunk = old
+                    return False, (f"exercise calibration ({pose}): {message}；平躺校准失败（腰部倾斜{tilt:.0f}°），"
+                                   "请背部和臀部平贴垫子")
+                cal.bridge_waist = correction
+                message += f"；腰部平躺已校准（{tilt:.0f}°）"
+            return passed, f"exercise calibration ({pose}): {message}"
         # As with bird-dog, use the neutral trunk for reach headings: the lumbar
         # sensor may yaw while an arm reaches, even if the shoulders stay square.
         reference = self.reference_waist if pose in ("cat_left", "cat_right") else None
@@ -264,6 +292,16 @@ class ExerciseCalibration:
                 mount = _rotation_between(cal.corrections[i] @ BONE_AXES[label], local_target) @ cal.corrections[i]
                 cal.headings[i], cal.corrections[i] = heading, mount
                 report.append(f"{label}: 朝向/倾斜已校准（倾斜{tilt:.0f}°）")
+            elif operation == "heading":
+                # World yaw only: the bone's inclination (which yaw cannot change) is still checked.
+                before = _angle_deg(_rotation_between(direction, target))
+                heading = _yaw(_wrap(_azimuth(target) - _azimuth(direction))) @ cal.headings[i]
+                direction = heading @ hold[0] @ cal.corrections[i] @ BONE_AXES[label]
+                error = _angle_deg(_rotation_between(direction, target))
+                cal.headings[i] = heading
+                report.append(f"{label}: 朝向已对齐（原偏差{before:.0f}°），复核{error:.0f}°"
+                              + (" CHECK FAILED" if error > CHECK_DEG else ""))
+                passed &= error <= CHECK_DEG
             else:
                 error = _angle_deg(_rotation_between(direction, target))
                 limit = CAT_WRIST_CHECK_DEG if pose == "cat_check" and label in ("lw", "rw") else CHECK_DEG

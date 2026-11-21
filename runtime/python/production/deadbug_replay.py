@@ -25,6 +25,7 @@ from production.model_backends import (
 from production.pose_calibration import PoseCalibrator
 from production.bridge_contact import load_bridge_calibration
 from production.rotmat import batch_smpl_matrix_to_unity_quat_xyzw
+from production.reach_heading import ReachHeading
 from production.start_pose_rebase import StartPoseRebaser
 
 WARMUP_FRAMES = 12   # run.py SOURCE_SWITCH_WARMUP_FRAMES
@@ -48,13 +49,23 @@ class ReplayResult:
     leg_events: dict
 
 
+def _override(calibrator, override):
+    """Replace the recorded headings/corrections (e.g. a start-pose fit computed offline)."""
+    if override is not None:
+        calibrator.headings = np.asarray(override[0], dtype=np.float64).copy()
+        calibrator.corrections = np.asarray(override[1], dtype=np.float64).copy()
+        calibrator.calibration_enabled = True
+
+
 def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", model_accel_fix: bool = False,
            infer_every: int | None = None, loaded=None, bridge_override: dict | None = None,
            start_pose_override: tuple[str, str] | None = None,
            start_pose_rebase_override: tuple[str, str] | None = None,
            start_context_frames: int = 0, start_offset_frames: int = 0,
            pure_model: bool = False, ignore_recorded_calibration: bool = False,
-           initial_calibration_only: bool = False) -> ReplayResult:
+           initial_calibration_only: bool = False,
+           calibration_override: tuple[np.ndarray, np.ndarray] | None = None,
+           reach_action: str | None = None) -> ReplayResult:
     rows = [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
     header = rows[0]
     action_id = next((r.get("diagnostics", {}).get("exerciseCalibration", {}).get("action")
@@ -89,6 +100,11 @@ def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", mode
         arm_prior_enabled = False
     legs = LegChain(labels, "off" if pure_model else leg_mode)
     legs.reset("replay start")
+    if calibration_override is not None:      # set once; recorded per-tick calibration is ignored
+        initial_calibration_only = True
+        _override(calibrator, calibration_override)
+    reach = ReachHeading(labels)
+    reach.activate(reach_action)
     if start_pose_override is not None:
         legs.activate_start_pose(*start_pose_override)
     rebaser = StartPoseRebaser(labels)
@@ -182,6 +198,7 @@ def replay(path: Path, model_id: str | None = None, leg_mode: str = "auto", mode
             model_oris.append(model_ori.numpy())
             push_frame(session, feature, model_ori, aligned_accel)
             calibrator.advance(1)
+            reach.update(calibrator, calibrator._history[-1])
             frame_index += 1
             since_inference += 1
             if warmup > 0:

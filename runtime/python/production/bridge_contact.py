@@ -119,7 +119,8 @@ def apply_trunk_bias(local: np.ndarray, bias) -> np.ndarray:
 class BridgeContact:
     """Per-output thigh solve from the bridge contacts (see module docstring)."""
 
-    def __init__(self, fps: float = 60.0, pelvis_only: bool = False, floor_arms: bool = True) -> None:
+    def __init__(self, fps: float = 60.0, pelvis_only: bool = False, floor_arms: bool = True,
+                 max_leg_sine: float = 0.98) -> None:
         self.offsets = _rest_offsets()
         self.thigh_length = float(np.linalg.norm(self.offsets[4]))
         self.shank_length = float(np.linalg.norm(self.offsets[7]))
@@ -128,6 +129,9 @@ class BridgeContact:
         self.fps = fps
         self.pelvis_only = pelvis_only
         self.floor_arms = floor_arms
+        # Thigh solves whose |sine| exceeds this are skipped (the network thigh is kept); below it, the
+        # sine is clamped to 0.98.  Curl-up passes a larger value (curlup_contact.py).
+        self.max_leg_sine = max_leg_sine
         self.reset("init")
 
     def reset(self, reason: str) -> None:
@@ -164,7 +168,7 @@ class BridgeContact:
             shank_elev = math.degrees(math.asin(float(np.clip(shank[1], -1, 1))))
             planted = 1.0 if GATE_SHANK_DEG[0] <= shank_elev <= GATE_SHANK_DEG[1] else 0.0
             sine = (ANKLE_HEIGHT - p[hip, 1] - self.shank_length * shank[1]) / self.thigh_length
-            feasible = abs(sine) <= 0.98
+            feasible = abs(sine) <= self.max_leg_sine
             goal = supine * planted * (1.0 if feasible else 0.0)
             step = WEIGHT_RATE_PER_S * dt
             self.weight[side] += float(np.clip(goal - self.weight[side], -step, step))

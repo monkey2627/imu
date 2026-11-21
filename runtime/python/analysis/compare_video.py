@@ -92,8 +92,10 @@ def _header(order, titles, subtitle):
     return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
 
 
-def render(out: Path, columns, times, text, subtitle, frame_key=None, side_yaw_offset=0.0, workers=8):
-    """columns: list of (key, title, locals (P,24,3,3)); text: {key: [lines per frame]}."""
+def render(out: Path, columns, times, text, subtitle, frame_key=None, side_yaw_offset=0.0, workers=8,
+           yaw_axis=(1.0, 0.0, 0.0)):
+    """columns: list of (key, title, locals (P,24,3,3)); text: {key: [lines per frame]}.
+    yaw_axis: pelvis axis the first view looks along (default lateral; (0,0,1) = chest, for side lying)."""
     model, faces = smpl_model()
     order = [key for key, _t, _l in columns]
     titles = {key: title for key, title, _l in columns}
@@ -105,7 +107,7 @@ def render(out: Path, columns, times, text, subtitle, frame_key=None, side_yaw_o
     sample = np.stack([mv.skin(model, quats[frame_key][i], True) for i in sample_idx])
     center = np.median(sample.reshape(-1, 3), 0)
     extent = np.percentile(np.abs(sample - center).reshape(-1, 3), 99.5, axis=0).max()
-    lateral = sum(mv._quat_mat(quats[frame_key][i][0]) @ np.array([1.0, 0, 0]) for i in sample_idx)
+    lateral = sum(mv._quat_mat(quats[frame_key][i][0]) @ np.asarray(yaw_axis, float) for i in sample_idx)
     lateral[1] = 0
     yaw = float(np.arctan2(lateral[0], lateral[2])) + side_yaw_offset
     views = [mv._view(yaw + np.pi, 0.0), mv._view(yaw + np.pi + 0.9, 0.35)]
@@ -116,10 +118,23 @@ def render(out: Path, columns, times, text, subtitle, frame_key=None, side_yaw_o
     writer = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), 30, (PW * len(order), HEADER + 2 * PH))
     if not writer.isOpened():
         raise RuntimeError(f"cannot open {out}")
-    with Pool(workers, initializer=_init, initargs=(state,)) as pool:
-        for k, img in enumerate(pool.imap(_frame, range(n), chunksize=4)):
+    # Some embedded/managed Python environments (including the mobileposer
+    # runtime on Windows) disallow creating child processes.  Keep a
+    # deterministic in-process fallback for recorded-video rendering.
+    if workers <= 1:
+        _init(state)
+        frames = enumerate(map(_frame, range(n)))
+    else:
+        pool = Pool(workers, initializer=_init, initargs=(state,))
+        frames = enumerate(pool.imap(_frame, range(n), chunksize=4))
+    try:
+        for k, img in frames:
             writer.write(img)
             if k % 200 == 0:
                 print(f"  frame {k}/{n}", flush=True)
+    finally:
+        if workers > 1:
+            pool.close()
+            pool.join()
     writer.release()
     return out
