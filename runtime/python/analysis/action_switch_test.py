@@ -39,8 +39,12 @@ SOURCES = {     # real recordings whose live start-pose calibration completed (c
     "hipthrust": ("hipthrust_20261119_234600.jsonl", "supine"),
     "deadbug": ("deadbug_20261119_234510.jsonl", "tabletop"),
     "sidebridge_left": ("sidebridge_left_20261122_033550.jsonl", "side_rest"),
+    # Unity's bird-dog flow (not ExerciseCalibration): four-point hold 0-7.3 s, then birdDogBaseCalibrate.
+    "birddog": ("birddog_20261123_005257.jsonl", "quadruped"),
 }
-RULE_KEYS = {"lyingcat": "lyingcat", "hipthrust": "bridge", "deadbug": "deadbugFloor", "sidebridge_left": "sidebridge"}
+BIRDDOG_HOLD_SECONDS = 7.3
+RULE_KEYS = {"lyingcat": "lyingcat", "hipthrust": "bridge", "deadbug": "deadbugFloor", "sidebridge_left": "sidebridge",
+             "birddog": "birddog"}
 PORT = 21291
 
 
@@ -166,13 +170,25 @@ async def scenario(sequence, results):
 
         mark = len(client.frames)
         feeder.play(segments[action])                                       # user holds the start pose
-        await client.send(command="exerciseCalibrationStart", action=action, startPose=start_pose)
-        d = await client.wait(lambda d: (d.get("exerciseCalibration") or {}).get("action") == action
-                              and (d.get("exerciseCalibration") or {}).get("outcome") in ("complete", "failed"),
-                              60, mark)
-        outcome = d["exerciseCalibration"]["outcome"]
-        check(results, outcome == "complete", f"{action}: calibration {outcome} "
-              f"({(d['exerciseCalibration'].get('results') or [''])[-1][:120]})")
+        if action == "birddog":
+            # Unity's bird-dog calibration: session start, four-point hold, base command, session end.
+            await client.send(command="calibrationSessionStart", name=action)
+            await client.send(command="birdDogStartCalibrate")
+            await asyncio.sleep(BIRDDOG_HOLD_SECONDS)
+            await client.send(command="birdDogBaseCalibrate")
+            await client.send(command="calibrationSessionEnd")
+            d = await client.wait(lambda d: "start pose fit (birddog/quadruped)" in (d.get("controlMessage") or ""),
+                                  20, mark)
+            check(results, "模型已从 quadruped" in d["controlMessage"],
+                  f"{action}: calibration ({d['controlMessage'][:120]})")
+        else:
+            await client.send(command="exerciseCalibrationStart", action=action, startPose=start_pose)
+            d = await client.wait(lambda d: (d.get("exerciseCalibration") or {}).get("action") == action
+                                  and (d.get("exerciseCalibration") or {}).get("outcome") in ("complete", "failed"),
+                                  60, mark)
+            outcome = d["exerciseCalibration"]["outcome"]
+            check(results, outcome == "complete", f"{action}: calibration {outcome} "
+                  f"({(d['exerciseCalibration'].get('results') or [''])[-1][:120]})")
         d = await client.wait(lambda d: (d.get("actionState") or {}).get("startPose") == start_pose, 10, mark)
         state, legs = d["actionState"], d.get("deadbugLegs") or {}
         constraint = legs.get("startPoseConstraint") or {}

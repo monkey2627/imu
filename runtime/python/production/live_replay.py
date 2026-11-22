@@ -227,6 +227,7 @@ def replay_live(path, leg_mode: str = "auto", simulate: bool = False) -> LiveRep
                 feature, model_ori, aligned_accel, _ = prepare_frame(
                     state["session"], calibrator, state["model"], labels, quats, accel, samples, labels,
                     legs, model_accel_fix)
+                rules_legs.observe_acceleration(labels, samples, labels, accel)   # as prepare_frame does
                 recent.append((feature.copy(), bone_orientation(quats, labels).numpy(), aligned_accel.numpy()))
                 push_frame(state["session"], feature, model_ori, aligned_accel)
                 if simulate:

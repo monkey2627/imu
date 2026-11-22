@@ -18,6 +18,7 @@ import torch
 
 from production.accel_frame import AccelerationFrameFix
 from production.arm_prior import straighten_reaching_arms
+from production.birddog_contact import BirdDogContact
 from production.bridge_contact import BRIDGE_MODELS, BridgeContact, apply_trunk_bias
 from production.curlup_contact import CURLUP_MODELS, CurlUpContact
 from production.deadbug_floor import DeadBugFloorContact
@@ -32,6 +33,8 @@ DEADBUG_MODELS = frozenset({"waist_imudino_stream_deadbug_limbmix", "waist_imudi
                             "waist_imudino_stream_deadbug_simreal"})
 # Actions whose output gets the side-bridge support rule (sidebridge_contact.py); no other action.
 SIDEBRIDGE_ACTIONS = {"sidebridge_left": "left", "sidebridge_right": "right"}
+# Actions whose output gets the bird-dog support-knee rule (birddog_contact.py); no other action.
+BIRDDOG_ACTIONS = frozenset({"birddog"})
 # Models whose thighs are re-estimated from shank translation (deadbug_legs.py) in leg mode "auto".
 # The RehabV5-std head predicts the dead-bug legs itself; on the real recordings 045157/063451 the
 # estimator folded its tabletop knees/hips to ~140 deg, so it is excluded (2026-11-19, user choice).
@@ -51,6 +54,7 @@ class LegChain:
         self.bridge = BridgeContact()
         self.curlup = CurlUpContact()
         self.lyingcat = LyingCatContact()
+        self.birddog = BirdDogContact()
         self.deadbug_floor = DeadBugFloorContact()
         self.sidebridge = {side: SideBridgeContact(side) for side in ("left", "right")}
         self.start_pose = StartPoseConstraint(self.labels)
@@ -65,6 +69,7 @@ class LegChain:
         self.bridge.reset(reason)
         self.curlup.reset(reason)
         self.lyingcat.reset(reason)
+        self.birddog.reset(reason)
         self.deadbug_floor.reset(reason)
         for rule in self.sidebridge.values():
             rule.reset(reason)
@@ -82,6 +87,13 @@ class LegChain:
             if value is not None:
                 out[i] = value
         return out
+
+    def observe_acceleration(self, labels, samples, keys, fallback) -> np.ndarray:
+        """Per 60 Hz frame: corrected server-frame acceleration; feeds the bird-dog lift/landing
+        detector (state only -- no output of any other action depends on it)."""
+        corrected = self.corrected_server_acceleration(samples, keys, fallback)
+        self.birddog.observe(labels, corrected)
+        return corrected
 
     def new_events(self):
         """Estimator events not yet reported (for diagnostics)."""
@@ -101,7 +113,7 @@ def prepare_frame(session, calibrator, model_id, labels, quats, accel, samples, 
 
     The leg estimator observes only while enabled for ``model_id``; the acceleration fix keeps its
     per-tracker state either way."""
-    corrected = legs.corrected_server_acceleration(samples, keys, accel)
+    corrected = legs.observe_acceleration(labels, samples, keys, accel)
     model_accel = corrected if model_accel_fix else accel
     feature, calibrated_ori, aligned_accel = session.prepare_feature(quats, model_accel)
     gravity_quats = np.stack([samples[key].raw_quat_xyzw for key in keys])
@@ -214,5 +226,10 @@ def postprocess_output(output, calibrator, lag, labels, arm_prior_enabled, model
                                              measured=measured, labels=labels)
         output = torch.from_numpy(local).to(output)
         leg_diag["lyingcat"] = contact
+    if action_id in BIRDDOG_ACTIONS and legs is not None:
+        # Bird dog only (birddog_contact.py): a leg whose shank has not risen above the start hold kneels.
+        local, contact = legs.birddog.apply(output.detach().numpy().astype(np.float64), dt)
+        output = torch.from_numpy(local).to(output)
+        leg_diag["birddog"] = contact
     return output, arm_weights, leg_diag
 
