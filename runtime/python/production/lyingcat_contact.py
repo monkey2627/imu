@@ -102,6 +102,14 @@ SPINE_SMOOTH_DEG = 0.15        # regulariser: penalise spine2 vs spine3 disagree
 ARM_BEND_MAX_DEG = 15.0
 MAX_ROLL_DEG = 15.0
 ROLL_REG = 0.05
+HEIGHT_WEIGHT = 4.0                  # shoulder-height residual weight vs fore-aft (palms on the mat); 2 -> 4 2026-11-23: 044417 cat lifted the left palm 3-4 cm
+# Waist neutral (2026-11-23): the waist sensor's absolute pitch in the neutral hold depends on where on
+# the curved back it sits (13 deg on 230158, 7 deg on 004720), so cat/cow is taken RELATIVE to the
+# first NEUTRAL_CAPTURE_S of stable four-point support after a reset (run.py resets at the start-pose
+# rebase, right after the cat_neutral hold): that reading is mapped to a straight back (spine1 bone
+# along spine1-joint -> shoulders), the change from it is applied 1:1.
+NEUTRAL_CAPTURE_S = 1.0
+NEUTRAL_TIME_CONSTANT_S = 0.15
 
 
 def _twist_angle(rotation, axis):
@@ -144,6 +152,16 @@ class LyingCatContact:
         self.hand_anchor = None
         self.seeded = False
         self.reason = reason
+        self.neutral_offset_deg = 0.0       # applied spine1 pitch offset (deg, + = headward up)
+        self.neutral_samples = []           # wanted offsets during the capture window
+        self.neutral_target_deg = None      # frozen once the capture window is over
+        self.neutral_s = 0.0
+        self.roll_target_deg = None
+        self.neutral_applied_deg = 0.0
+        self.neutral_pitch = []             # spine1 (waist) bone pitch during the capture window
+        self.roll_samples = []              # wanted spine1 roll offsets during the capture window
+        self.roll_offset_deg = 0.0
+        self.roll_applied_deg = 0.0
 
     # ------------------------------------------------------------------ helpers
     def _positions(self, g) -> np.ndarray:
@@ -211,6 +229,69 @@ class LyingCatContact:
         local[0] = _rotation_between(head, wanted) @ local[0]
         self._restore(local, keep)
         return current, current + delta
+
+    def _spine1_pitch(self, g):
+        """Elevation (deg) of the spine1 bone (spine1 joint -> spine2 joint)."""
+        return _elevation(g[3] @ self.offsets[6])
+
+    @staticmethod
+    def _spine1_roll(g):
+        """Elevation (deg) of spine1's lateral (SMPL x) axis: 0 = trunk level side to side."""
+        return _elevation(g[3][:, 0])
+
+    @staticmethod
+    def _follow(current, samples, frozen, dt):
+        target = frozen if frozen is not None else float(np.mean(samples))
+        if len(samples) == 1 and frozen is None:
+            return target                                   # first estimate: start there, no ramp from 0
+        return current + (1.0 - math.exp(-dt / NEUTRAL_TIME_CONSTANT_S)) * (target - current)
+
+    def _apply_neutral(self, local, support, dt):
+        """Pitch spine1 (= the waist sensor) by the neutral offset; forearms keep their measured globals.
+
+        Spine2/3 ride on spine1 and are re-solved afterwards for the palms, so the change of the waist
+        reading from the neutral hold shows up 1:1 as lumbar bend, independent of where on the back
+        the sensor sits."""
+        if self.neutral_samples:
+            self.neutral_offset_deg = self._follow(self.neutral_offset_deg, self.neutral_samples,
+                                                   self.neutral_target_deg, dt)
+            self.roll_offset_deg = self._follow(self.roll_offset_deg, self.roll_samples,
+                                                self.roll_target_deg, dt)
+        self.neutral_applied_deg = support * self.neutral_offset_deg
+        self.roll_applied_deg = support * self.roll_offset_deg
+        if abs(self.neutral_applied_deg) < 1e-6 and abs(self.roll_applied_deg) < 1e-6:
+            return
+        g = _globals(local)
+        head = self._headward(g, self._positions(g))
+        axis = np.cross(UP, head)                       # +angle about it pitches headward DOWN
+        keep = {joint: g[joint].copy() for joint in (18, 19)}
+        new3 = _axis_rotation(axis, -self.neutral_applied_deg) @ g[3]
+        # roll about the head direction; its sign sets which way the lateral axis rises
+        side = 1.0 if float(np.cross(head, new3[:, 0])[1]) >= 0.0 else -1.0
+        new3 = _axis_rotation(head, side * self.roll_applied_deg) @ new3
+        local[3] = g[0].T @ new3
+        self._restore(local, keep)
+
+    def _capture_neutral(self, local, dt):
+        """During the first NEUTRAL_CAPTURE_S of stable support: the offset that puts the spine1 bone on
+        the line spine1 joint -> shoulder midpoint (a straight back) for the waist reading held then."""
+        if self.neutral_target_deg is not None or self.stable_s <= 0.0:
+            return
+        g = _globals(local)
+        p = self._positions(g)
+        head = self._headward(g, p)
+        chord = 0.5 * (p[16] + p[17]) - p[3]
+        chord = float(chord @ head) * head + chord[1] * UP          # sagittal part
+        unshifted = self._spine1_pitch(g) - self.neutral_applied_deg
+        self.neutral_samples.append(_elevation(chord) - unshifted)
+        self.neutral_pitch.append(unshifted)
+        # a level trunk in the neutral hold: the waist sensor's side tilt then is mounting (2026-11-23:
+        # worn at the front 044239/044417 read 9-14 deg, spine3 roll then sat on its 15 deg cap)
+        self.roll_samples.append(-(self._spine1_roll(g) - self.roll_applied_deg))
+        self.neutral_s += dt
+        if self.neutral_s >= NEUTRAL_CAPTURE_S:
+            self.neutral_target_deg = float(np.mean(self.neutral_samples))
+            self.roll_target_deg = float(np.mean(self.roll_samples))
 
     @staticmethod
     def _restore(local, globals_by_joint):
@@ -469,7 +550,7 @@ class LyingCatContact:
             s = self._shoulders(p, axis, x[0], x[1], x[2], head)
             diff = s - targets
             e = arm_w @ diff
-            return np.array([e @ head, arm_w[0] * diff[0, 1] * 2, arm_w[1] * diff[1, 1] * 2,
+            return np.array([e @ head, arm_w[0] * diff[0, 1] * HEIGHT_WEIGHT, arm_w[1] * diff[1, 1] * HEIGHT_WEIGHT,
                              SPINE_SMOOTH_DEG * 0.01 * (x[0] - x[1]), ROLL_REG * 0.01 * x[2]])
 
         x = self.spine_ab.copy()
@@ -548,6 +629,7 @@ class LyingCatContact:
         else:
             self.stable_s, self.knee_anchor, self.hand_anchor = 0.0, None, None
         pelvis_before, pelvis_after = self._stabilise_pelvis(local, support, dt)
+        self._apply_neutral(local, support, dt)
 
         self._level_legs(local)
         self._legs(local, dt)
@@ -601,12 +683,21 @@ class LyingCatContact:
             self.knee_anchor = {k: p[h] + float(np.linalg.norm(self.offsets[k])) * DOWN
                                 for h, k in ((1, 4), (2, 5))}
 
+        self._capture_neutral(local, dt)
         g = _globals(local)
         p = self._positions(g)
         diag = {"enabled": True, "weights": {k: round(v, 3) for k, v in self.weights.items()},
                 "spineDeg": [round(float(v), 1) for v in self.spine_ab * support],
                 "pelvisPitchDeg": {"network": round(pelvis_before, 1), "applied": round(pelvis_after, 1)},
                 "sensorElevationDeg": elevations, "anchorsActive": self.hand_anchor is not None,
+                "waistNeutral": {"offsetDeg": round(self.neutral_applied_deg, 1),
+                                 "rollOffsetDeg": round(self.roll_applied_deg, 1),
+                                 "captured": self.neutral_target_deg is not None,
+                                 # waist pitch change from the neutral hold (+ = toward cat); a wear check:
+                                 # 230158 (cat/cow visible) swings ~+7/-13 deg, 004720 only ~+1/-4
+                                 "waistDeltaDeg": (round(self._spine1_pitch(g) - self.neutral_applied_deg
+                                                         - float(np.mean(self.neutral_pitch)), 1)
+                                                   if self.neutral_pitch else None)},
                 "thighElevationDeg": {side: round(_elevation(g[thigh] @ self.offsets[shank]), 1)
                                       for side, thigh, shank, _a, _f in LEGS},
                 "elbowTwistDeg": {side: round(_twist_angle(local[forearm], _unit(self.offsets[wrist])), 1)

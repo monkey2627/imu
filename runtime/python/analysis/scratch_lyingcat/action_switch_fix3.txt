@@ -1,0 +1,276 @@
+E:\dyh\conda_envs\mobileposer\lib\site-packages\torch\_utils.py:831: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+Model: waist_mobileposer_amass (60 Hz, inference every 2 frames = 30 poses/s, output lag 10 frames = 167 ms)
+Broadcasting SMPL pose on ws://127.0.0.1:21291
+Waiting for a recognized tracker layout (bind trackers in SlimeVR-Server)...
+Resolved layout: wrists_shanks_waist (labels: ['lw', 'rw', 'ls', 'rs', 'waist'])
+Acceleration source: server (requested: server)
+Using SlimeVR reference-adjusted acceleration; Python heading fit skipped.
+Calibrated. Streaming live pose...
+
+=== step 1: None -> lyingcat (no Python restart) ===
+lifecycle {"phase": "modelSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 0, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousModel": "waist_mobileposer_amass"}
+lifecycle {"phase": "actionSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 0, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousAction": null, "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 lyingcat，请先完成该动作的起始姿势校准
+PASS lyingcat: first output after switch has actionId=lyingcat model=waist_imudino_stream_lyingcat_flowhmr_20261118
+PASS lyingcat: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS lyingcat: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "lyingcat", "startPose": null, "calibrationSessionId": 0, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "exerciseCalibrationStart", "previousAction": "lyingcat", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_20261123_053238.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "requestedStartPose": "quadruped"}
+Unity control: calibrationSessionStart -> recording calibration lyingcat_20261123_053238.jsonl
+Unity control: exerciseCalibrationStart -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "calibrationPoseStep", "action": "lyingcat", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "pose": "cat_neutral", "passed": true, "message": "exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转8°, rs: 朝向+4°/倾斜9°/扭转2°"}
+lifecycle {"phase": "calibrationEnd", "action": "lyingcat", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "outcome": "complete"}
+Unity control: calibrationSessionEnd -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "modelContextRebase", "rebaseAction": "lyingcat", "rebaseStartPose": "quadruped", "contextFrames": 60, "modelSessionReset": true}
+exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转8°, rs: 朝向+4°/倾斜9°/扭转2°；全部校准完成，模型已从 quadruped 起始姿态重建上下文
+PASS lyingcat: calibration complete (exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, l)
+PASS lyingcat: first output after calibration: session 1, startPose=quadruped, constraint enabled=False weights=[0.0, 0.0] armWeights=[0.0, 0.0]
+PASS lyingcat: only this action's rule runs (has lyingcat: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_20261123_053238.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_20261123_053238.jsonl
+Unity control: stopRecording -> saved lyingcat_20261123_053238.jsonl (12.5s)
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_set2_20261123_053251.jsonl"}
+Unity control: startRecording -> recording lyingcat_set2_20261123_053251.jsonl
+PASS lyingcat: second set re-arms start pose quadruped (enabled=False)
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_set2_20261123_053251.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_set2_20261123_053251.jsonl
+Unity control: stopRecording -> saved lyingcat_set2_20261123_053251.jsonl (2.1s)
+
+=== step 2: lyingcat -> birddog (no Python restart) ===
+lifecycle {"phase": "startPoseClear", "action": "birddog", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousAction": "lyingcat", "previousStartPose": "quadruped"}
+lifecycle {"phase": "modelSwitch", "action": "birddog", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousModel": "waist_imudino_stream_lyingcat_flowhmr_20261118"}
+lifecycle {"phase": "actionSwitch", "action": "birddog", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousAction": "lyingcat", "previousStartPose": "quadruped", "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 birddog，请先完成该动作的起始姿势校准
+PASS birddog: first output after switch has actionId=birddog model=waist_imudino_stream_wristankle_limbmix
+PASS birddog: lastReset previousAction=lyingcat previousStartPose=quadruped sessionReset=True
+PASS birddog: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS birddog: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "birddog", "startPose": null, "calibrationSessionId": 1, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "calibrationSessionStart", "previousAction": "birddog", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "birddog", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "recordingFile": "birddog_20261123_053255.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "birddog", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "requestedStartPose": null}
+Unity control: calibrationSessionStart -> recording calibration birddog_20261123_053255.jsonl
+Unity control: birdDogStartCalibrate -> recording calibration birddog_20261123_053255.jsonl
+Unity control: birdDogBaseCalibrate -> recording calibration birddog_20261123_053255.jsonl
+lifecycle {"phase": "calibrationEnd", "action": "birddog", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "outcome": "idle"}
+Unity control: calibrationSessionEnd -> recording calibration birddog_20261123_053255.jsonl
+lifecycle {"phase": "startPoseActivate", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "modelContextRebase", "rebaseAction": "birddog", "rebaseStartPose": "quadruped", "contextFrames": 60, "modelSessionReset": true}
+start pose fit (birddog/quadruped): lw: 朝向-91°/倾斜17°/扭转0°, rw: 朝向-87°/倾斜13°/扭转0°, ls: 朝向+7°/倾斜9°/扭转5°, rs: 朝向+8°/倾斜14°/扭转1°；模型已从 quadruped 起始姿态重建上下文
+PASS birddog: calibration (start pose fit (birddog/quadruped): lw: 朝向-91°/倾斜17°/扭转0°, rw: 朝向-87°/倾斜13°/扭转0°, ls: 朝向+7°/倾斜9°/扭转5°, rs: 朝向+8°/倾斜14°/扭)
+PASS birddog: first output after calibration: session 2, startPose=quadruped, constraint enabled=False weights=[0.0, 0.0] armWeights=[0.0, 0.0]
+PASS birddog: only this action's rule runs (has birddog: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "reason": "stopRecording", "recordingFile": "birddog_20261123_053255.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\birddog_20261123_053255.jsonl
+Unity control: stopRecording -> saved birddog_20261123_053255.jsonl (11.4s)
+lifecycle {"phase": "startPoseActivate", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "recordingFile": "birddog_set2_20261123_053307.jsonl"}
+Unity control: startRecording -> recording birddog_set2_20261123_053307.jsonl
+PASS birddog: second set re-arms start pose quadruped (enabled=False)
+lifecycle {"phase": "recordingStop", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "reason": "stopRecording", "recordingFile": "birddog_set2_20261123_053307.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\birddog_set2_20261123_053307.jsonl
+Unity control: stopRecording -> saved birddog_set2_20261123_053307.jsonl (2.1s)
+
+=== step 3: birddog -> lyingcat (no Python restart) ===
+lifecycle {"phase": "startPoseClear", "action": "lyingcat", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousAction": "birddog", "previousStartPose": "quadruped"}
+lifecycle {"phase": "modelSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousModel": "waist_imudino_stream_wristankle_limbmix"}
+lifecycle {"phase": "actionSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousAction": "birddog", "previousStartPose": "quadruped", "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 lyingcat，请先完成该动作的起始姿势校准
+PASS lyingcat: first output after switch has actionId=lyingcat model=waist_imudino_stream_lyingcat_flowhmr_20261118
+PASS lyingcat: lastReset previousAction=birddog previousStartPose=quadruped sessionReset=True
+PASS lyingcat: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS lyingcat: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "lyingcat", "startPose": null, "calibrationSessionId": 2, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "exerciseCalibrationStart", "previousAction": "lyingcat", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_20261123_053311.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "requestedStartPose": "quadruped"}
+Unity control: calibrationSessionStart -> recording calibration lyingcat_20261123_053311.jsonl
+Unity control: exerciseCalibrationStart -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "calibrationPoseStep", "action": "lyingcat", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "pose": "cat_neutral", "passed": true, "message": "exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转7°, rs: 朝向+4°/倾斜9°/扭转1°"}
+lifecycle {"phase": "calibrationEnd", "action": "lyingcat", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "outcome": "complete"}
+Unity control: calibrationSessionEnd -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "modelContextRebase", "rebaseAction": "lyingcat", "rebaseStartPose": "quadruped", "contextFrames": 60, "modelSessionReset": true}
+exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转7°, rs: 朝向+4°/倾斜9°/扭转1°；全部校准完成，模型已从 quadruped 起始姿态重建上下文
+PASS lyingcat: calibration complete (exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, l)
+PASS lyingcat: first output after calibration: session 3, startPose=quadruped, constraint enabled=False weights=[0.0, 0.0] armWeights=[0.0, 0.0]
+PASS lyingcat: only this action's rule runs (has lyingcat: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_20261123_053311.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_20261123_053311.jsonl
+Unity control: stopRecording -> saved lyingcat_20261123_053311.jsonl (12.5s)
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_set2_20261123_053324.jsonl"}
+Unity control: startRecording -> recording lyingcat_set2_20261123_053324.jsonl
+PASS lyingcat: second set re-arms start pose quadruped (enabled=False)
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_set2_20261123_053324.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_set2_20261123_053324.jsonl
+Unity control: stopRecording -> saved lyingcat_set2_20261123_053324.jsonl (2.0s)
+
+=== step 4: lyingcat -> deadbug (no Python restart) ===
+lifecycle {"phase": "startPoseClear", "action": "deadbug", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "actionSelect", "previousAction": "lyingcat", "previousStartPose": "quadruped"}
+lifecycle {"phase": "modelSwitch", "action": "deadbug", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "actionSelect", "previousModel": "waist_imudino_stream_lyingcat_flowhmr_20261118"}
+lifecycle {"phase": "actionSwitch", "action": "deadbug", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "actionSelect", "previousAction": "lyingcat", "previousStartPose": "quadruped", "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 deadbug，请先完成该动作的起始姿势校准
+PASS deadbug: first output after switch has actionId=deadbug model=waist_imudino_stream_deadbug_rehabv5_std_20261118
+PASS deadbug: lastReset previousAction=lyingcat previousStartPose=quadruped sessionReset=True
+PASS deadbug: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS deadbug: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "deadbug", "startPose": null, "calibrationSessionId": 3, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "exerciseCalibrationStart", "previousAction": "deadbug", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "deadbug", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "recordingFile": "deadbug_20261123_053328.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "deadbug", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "requestedStartPose": "tabletop"}
+Unity control: calibrationSessionStart -> recording calibration deadbug_20261123_053328.jsonl
+Unity control: exerciseCalibrationStart -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "calibrationPoseStep", "action": "deadbug", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "pose": "tabletop_check", "passed": true, "message": "exercise calibration (tabletop_check): start pose fit (deadbug/tabletop): lw: 朝向+0°/倾斜19°/扭转0°, rw: 朝向+0°/倾斜16°/扭转0°, ls: 朝向-17°/倾斜0°/扭转2°, rs: 朝向-17°/倾斜2°/扭转1°"}
+lifecycle {"phase": "calibrationEnd", "action": "deadbug", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "outcome": "complete"}
+Unity control: calibrationSessionEnd -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "startPoseActivate", "action": "deadbug", "startPose": "tabletop", "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": true, "action": "deadbug", "startPose": "tabletop", "weights": [1.0, 1.0], "armWeights": [1.0, 1.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "modelContextRebase", "rebaseAction": "deadbug", "rebaseStartPose": "tabletop", "contextFrames": 60, "modelSessionReset": true}
+exercise calibration (tabletop_check): start pose fit (deadbug/tabletop): lw: 朝向+0°/倾斜19°/扭转0°, rw: 朝向+0°/倾斜16°/扭转0°, ls: 朝向-17°/倾斜0°/扭转2°, rs: 朝向-17°/倾斜2°/扭转1°；全部校准完成，模型已从 tabletop 起始姿态重建上下文
+PASS deadbug: calibration complete (exercise calibration (tabletop_check): start pose fit (deadbug/tabletop): lw: 朝向+0°/倾斜19°/扭转0°, rw: 朝向+0°/倾斜16°/扭转0°, ls)
+PASS deadbug: first output after calibration: session 4, startPose=tabletop, constraint enabled=True weights=[1.0, 1.0] armWeights=[1.0, 1.0]
+PASS deadbug: tabletop constraint starts at full weight
+PASS deadbug: only this action's rule runs (has deadbugFloor: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "deadbug", "startPose": "tabletop", "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": true, "action": "deadbug", "startPose": "tabletop", "weights": [0.0, 1.0], "armWeights": [1.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "reason": "stopRecording", "recordingFile": "deadbug_20261123_053328.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\deadbug_20261123_053328.jsonl
+Unity control: stopRecording -> saved deadbug_20261123_053328.jsonl (16.3s)
+lifecycle {"phase": "startPoseActivate", "action": "deadbug", "startPose": "tabletop", "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": true, "action": "deadbug", "startPose": "tabletop", "weights": [1.0, 1.0], "armWeights": [1.0, 1.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "deadbug", "startPose": "tabletop", "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": true, "action": "deadbug", "startPose": "tabletop", "weights": [1.0, 1.0], "armWeights": [1.0, 1.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "recordingFile": "deadbug_set2_20261123_053345.jsonl"}
+Unity control: startRecording -> recording deadbug_set2_20261123_053345.jsonl
+PASS deadbug: second set re-arms start pose tabletop (enabled=True)
+lifecycle {"phase": "recordingStop", "action": "deadbug", "startPose": "tabletop", "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "deadbug", "startPose": "tabletop", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_deadbug_rehabv5_std_20261118", "reason": "stopRecording", "recordingFile": "deadbug_set2_20261123_053345.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\deadbug_set2_20261123_053345.jsonl
+Unity control: stopRecording -> saved deadbug_set2_20261123_053345.jsonl (2.0s)
+
+=== step 5: deadbug -> birddog (no Python restart) ===
+lifecycle {"phase": "startPoseClear", "action": "birddog", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousAction": "deadbug", "previousStartPose": "tabletop"}
+lifecycle {"phase": "modelSwitch", "action": "birddog", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousModel": "waist_imudino_stream_deadbug_rehabv5_std_20261118"}
+lifecycle {"phase": "actionSwitch", "action": "birddog", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "actionSelect", "previousAction": "deadbug", "previousStartPose": "tabletop", "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 birddog，请先完成该动作的起始姿势校准
+PASS birddog: first output after switch has actionId=birddog model=waist_imudino_stream_wristankle_limbmix
+PASS birddog: lastReset previousAction=deadbug previousStartPose=tabletop sessionReset=True
+PASS birddog: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS birddog: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "birddog", "startPose": null, "calibrationSessionId": 4, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "calibrationSessionStart", "previousAction": "birddog", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "birddog", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "recordingFile": "birddog_20261123_053349.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "birddog", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "requestedStartPose": null}
+Unity control: calibrationSessionStart -> recording calibration birddog_20261123_053349.jsonl
+Unity control: birdDogStartCalibrate -> recording calibration birddog_20261123_053349.jsonl
+Unity control: birdDogBaseCalibrate -> recording calibration birddog_20261123_053349.jsonl
+lifecycle {"phase": "calibrationEnd", "action": "birddog", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "outcome": "idle"}
+Unity control: calibrationSessionEnd -> recording calibration birddog_20261123_053349.jsonl
+lifecycle {"phase": "startPoseActivate", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "modelContextRebase", "rebaseAction": "birddog", "rebaseStartPose": "quadruped", "contextFrames": 60, "modelSessionReset": true}
+start pose fit (birddog/quadruped): lw: 朝向-91°/倾斜17°/扭转0°, rw: 朝向-87°/倾斜13°/扭转0°, ls: 朝向+7°/倾斜9°/扭转5°, rs: 朝向+8°/倾斜14°/扭转1°；模型已从 quadruped 起始姿态重建上下文
+PASS birddog: calibration (start pose fit (birddog/quadruped): lw: 朝向-91°/倾斜17°/扭转0°, rw: 朝向-87°/倾斜13°/扭转0°, ls: 朝向+7°/倾斜9°/扭转5°, rs: 朝向+8°/倾斜14°/扭)
+PASS birddog: first output after calibration: session 5, startPose=quadruped, constraint enabled=False weights=[0.0, 0.0] armWeights=[0.0, 0.0]
+PASS birddog: only this action's rule runs (has birddog: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "reason": "stopRecording", "recordingFile": "birddog_20261123_053349.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\birddog_20261123_053349.jsonl
+Unity control: stopRecording -> saved birddog_20261123_053349.jsonl (11.4s)
+lifecycle {"phase": "startPoseActivate", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "recordingFile": "birddog_set2_20261123_053401.jsonl"}
+Unity control: startRecording -> recording birddog_set2_20261123_053401.jsonl
+PASS birddog: second set re-arms start pose quadruped (enabled=False)
+lifecycle {"phase": "recordingStop", "action": "birddog", "startPose": "quadruped", "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "birddog", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_wristankle_limbmix", "reason": "stopRecording", "recordingFile": "birddog_set2_20261123_053401.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\birddog_set2_20261123_053401.jsonl
+Unity control: stopRecording -> saved birddog_set2_20261123_053401.jsonl (2.1s)
+
+=== step 6: birddog -> lyingcat (no Python restart) ===
+lifecycle {"phase": "startPoseClear", "action": "lyingcat", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousAction": "birddog", "previousStartPose": "quadruped"}
+lifecycle {"phase": "modelSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousModel": "waist_imudino_stream_wristankle_limbmix"}
+lifecycle {"phase": "actionSwitch", "action": "lyingcat", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "actionSelect", "previousAction": "birddog", "previousStartPose": "quadruped", "modelSessionReset": true, "historyBufferCleared": true}
+Unity control: actionSelect -> 动作已切换为 lyingcat，请先完成该动作的起始姿势校准
+PASS lyingcat: first output after switch has actionId=lyingcat model=waist_imudino_stream_lyingcat_flowhmr_20261118
+PASS lyingcat: lastReset previousAction=birddog previousStartPose=quadruped sessionReset=True
+PASS lyingcat: before calibration no start pose / constraint inherited ({'enabled': False, 'action': None, 'startPose': None, 'weights': [0.0, 0.0], 'armWeights': [0.0, 0.0]})
+PASS lyingcat: no other action's rule in the output (found [])
+lifecycle {"phase": "fullReset", "action": "lyingcat", "startPose": null, "calibrationSessionId": 5, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "exerciseCalibrationStart", "previousAction": "lyingcat", "previousStartPose": null, "modelSessionReset": true, "historyBufferCleared": true}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_20261123_053405.jsonl"}
+lifecycle {"phase": "calibrationStart", "action": "lyingcat", "startPose": null, "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "requestedStartPose": "quadruped"}
+Unity control: calibrationSessionStart -> recording calibration lyingcat_20261123_053405.jsonl
+Unity control: exerciseCalibrationStart -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "calibrationPoseStep", "action": "lyingcat", "startPose": null, "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "pose": "cat_neutral", "passed": true, "message": "exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转7°, rs: 朝向+4°/倾斜9°/扭转1°"}
+lifecycle {"phase": "calibrationEnd", "action": "lyingcat", "startPose": null, "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": null, "startPose": null, "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "outcome": "complete"}
+Unity control: calibrationSessionEnd -> 按网页姿势提示完成校准；切换动作会取消本次校准
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "modelContextRebase", "rebaseAction": "lyingcat", "rebaseStartPose": "quadruped", "contextFrames": 60, "modelSessionReset": true}
+exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, ls: 朝向-12°/倾斜1°/扭转7°, rs: 朝向+4°/倾斜9°/扭转1°；全部校准完成，模型已从 quadruped 起始姿态重建上下文
+PASS lyingcat: calibration complete (exercise calibration (cat_neutral): start pose fit (lyingcat/quadruped): lw: 朝向+30°/倾斜20°/扭转0°, rw: 朝向+23°/倾斜16°/扭转0°, l)
+PASS lyingcat: first output after calibration: session 6, startPose=quadruped, constraint enabled=False weights=[0.0, 0.0] armWeights=[0.0, 0.0]
+PASS lyingcat: only this action's rule runs (has lyingcat: True, stale [])
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_20261123_053405.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_20261123_053405.jsonl
+Unity control: stopRecording -> saved lyingcat_20261123_053405.jsonl (12.4s)
+lifecycle {"phase": "startPoseActivate", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "resetReason": "startRecording"}
+lifecycle {"phase": "recordingStart", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "recordingFile": "lyingcat_set2_20261123_053418.jsonl"}
+Unity control: startRecording -> recording lyingcat_set2_20261123_053418.jsonl
+PASS lyingcat: second set re-arms start pose quadruped (enabled=False)
+lifecycle {"phase": "recordingStop", "action": "lyingcat", "startPose": "quadruped", "calibrationSessionId": 6, "calibrationEnabled": true, "anchorEnabled": false, "startPoseConstraint": {"enabled": false, "action": "lyingcat", "startPose": "quadruped", "weights": [0.0, 0.0], "armWeights": [0.0, 0.0]}, "model": "waist_imudino_stream_lyingcat_flowhmr_20261118", "reason": "stopRecording", "recordingFile": "lyingcat_set2_20261123_053418.jsonl"}
+Saved input recording: C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg\lyingcat_set2_20261123_053418.jsonl
+Unity control: stopRecording -> saved lyingcat_set2_20261123_053418.jsonl (2.1s)
+
+=== offline replay of every recording the bridge wrote (C:\Users\admin\AppData\Local\Temp\action_switch_2pi50xmg) ===
+lyingcat_20261123_053238.jsonl: 331 live outputs, rebases [(8.4, 'lyingcat', 'quadruped')]
+  rules/calibration (live network output -> offline postprocess): max 0.028 deg  p99 0.011  >0.5 deg: 0
+  after rebase: n=331  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS lyingcat_20261123_053238.jsonl: header modelSessionFresh=True action=lyingcat
+PASS lyingcat_20261123_053238.jsonl: offline replay from the file alone == live (synced 100%)
+lyingcat_set2_20261123_053251.jsonl: 60 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.005 deg  p99 0.004  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=60  network max 64.651 deg  final max 29.760 deg  p99 29.758  >0.5 deg: 60
+PASS lyingcat_set2_20261123_053251.jsonl: header modelSessionFresh=False action=lyingcat
+PASS lyingcat_set2_20261123_053251.jsonl: offline replay from the file alone == live (synced 0%)
+birddog_20261123_053255.jsonl: 287 live outputs, rebases [(7.33, 'birddog', 'quadruped')]
+  rules/calibration (live network output -> offline postprocess): max 0.002 deg  p99 0.001  >0.5 deg: 0
+  after rebase: n=287  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS birddog_20261123_053255.jsonl: header modelSessionFresh=True action=birddog
+PASS birddog_20261123_053255.jsonl: offline replay from the file alone == live (synced 100%)
+birddog_set2_20261123_053307.jsonl: 53 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.001 deg  p99 0.001  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=53  network max 67.087 deg  final max 86.180 deg  p99 85.491  >0.5 deg: 53
+PASS birddog_set2_20261123_053307.jsonl: header modelSessionFresh=False action=birddog
+PASS birddog_set2_20261123_053307.jsonl: offline replay from the file alone == live (synced 0%)
+lyingcat_20261123_053311.jsonl: 333 live outputs, rebases [(8.4, 'lyingcat', 'quadruped')]
+  rules/calibration (live network output -> offline postprocess): max 0.009 deg  p99 0.007  >0.5 deg: 0
+  after rebase: n=333  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS lyingcat_20261123_053311.jsonl: header modelSessionFresh=True action=lyingcat
+PASS lyingcat_20261123_053311.jsonl: offline replay from the file alone == live (synced 100%)
+lyingcat_set2_20261123_053324.jsonl: 57 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.004 deg  p99 0.003  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=57  network max 62.441 deg  final max 34.390 deg  p99 34.356  >0.5 deg: 57
+PASS lyingcat_set2_20261123_053324.jsonl: header modelSessionFresh=False action=lyingcat
+PASS lyingcat_set2_20261123_053324.jsonl: offline replay from the file alone == live (synced 0%)
+deadbug_20261123_053328.jsonl: 413 live outputs, rebases [(12.45, 'deadbug', 'tabletop')]
+  rules/calibration (live network output -> offline postprocess): max 0.000 deg  p99 0.000  >0.5 deg: 0
+  after rebase: n=413  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS deadbug_20261123_053328.jsonl: header modelSessionFresh=True action=deadbug
+PASS deadbug_20261123_053328.jsonl: offline replay from the file alone == live (synced 100%)
+deadbug_set2_20261123_053345.jsonl: 55 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.000 deg  p99 0.000  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=55  network max 81.414 deg  final max 81.414 deg  p99 81.207  >0.5 deg: 55
+PASS deadbug_set2_20261123_053345.jsonl: header modelSessionFresh=False action=deadbug
+PASS deadbug_set2_20261123_053345.jsonl: offline replay from the file alone == live (synced 0%)
+birddog_20261123_053349.jsonl: 299 live outputs, rebases [(7.33, 'birddog', 'quadruped')]
+  rules/calibration (live network output -> offline postprocess): max 0.002 deg  p99 0.001  >0.5 deg: 0
+  after rebase: n=299  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS birddog_20261123_053349.jsonl: header modelSessionFresh=True action=birddog
+PASS birddog_20261123_053349.jsonl: offline replay from the file alone == live (synced 100%)
+birddog_set2_20261123_053401.jsonl: 54 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.001 deg  p99 0.001  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=53  network max 69.421 deg  final max 71.049 deg  p99 70.636  >0.5 deg: 53
+PASS birddog_set2_20261123_053401.jsonl: header modelSessionFresh=False action=birddog
+PASS birddog_set2_20261123_053401.jsonl: offline replay from the file alone == live (synced 0%)
+lyingcat_20261123_053405.jsonl: 318 live outputs, rebases [(8.44, 'lyingcat', 'quadruped')]
+  rules/calibration (live network output -> offline postprocess): max 0.009 deg  p99 0.008  >0.5 deg: 0
+  after rebase: n=318  network max 0.000 deg  final max 0.000 deg  p99 0.000  >0.5 deg: 0
+PASS lyingcat_20261123_053405.jsonl: header modelSessionFresh=True action=lyingcat
+PASS lyingcat_20261123_053405.jsonl: offline replay from the file alone == live (synced 100%)
+lyingcat_set2_20261123_053418.jsonl: 57 live outputs, rebases none
+  rules/calibration (live network output -> offline postprocess): max 0.054 deg  p99 0.049  >0.5 deg: 0
+  no live output after a modelContextRebase: model state unknown, model parity not checked
+  before rebase: n=56  network max 63.402 deg  final max 40.749 deg  p99 40.568  >0.5 deg: 56
+PASS lyingcat_set2_20261123_053418.jsonl: header modelSessionFresh=False action=lyingcat
+PASS lyingcat_set2_20261123_053418.jsonl: offline replay from the file alone == live (synced 0%)
+
+72/72 checks passed
